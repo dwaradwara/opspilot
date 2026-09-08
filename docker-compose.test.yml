@@ -1,0 +1,47 @@
+name: opspilot-test
+
+services:
+  postgres_test:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: opspilot_test
+      POSTGRES_USER: opspilot
+      POSTGRES_PASSWORD: opspilot
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opspilot -d opspilot_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis_test:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api_test:
+    build: .
+    environment:
+      APP_NAME: OpsPilot-Test
+      ENVIRONMENT: test
+      LOG_LEVEL: INFO
+      JWT_SECRET: opspilot-test-only-secret-do-not-use-in-production
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      DATABASE_URL: postgresql+asyncpg://opspilot:opspilot@postgres_test:5432/opspilot_test
+      REDIS_URL: redis://redis_test:6379/0
+      REDIS_QUEUE_KEY: opspilot:test:jobs
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+      redis_test:
+        condition: service_healthy
+    command:
+      [
+        "sh",
+        "-c",
+        "alembic upgrade head && pytest -q"
+      ]

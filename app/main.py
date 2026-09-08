@@ -5,7 +5,7 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, health, tickets
+from app.api.routes import auth, health, members, tickets
 from app.core.config import settings
 from app.core.logging import configure_logging
 
@@ -58,3 +58,4 @@ async def request_context(request: Request, call_next):
 app.include_router(health.router)
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(tickets.router, prefix="/api/v1")
+app.include_router(members.router, prefix="/api/v1")
