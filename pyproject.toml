@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "OpsPilot production-support and reliability engineering platform"
 requires-python = ">=3.12"
 dependencies = [
+  "prometheus-client>=0.22,<1",
   "fastapi>=0.116,<1.0",
   "uvicorn[standard]>=0.35,<1.0",
   "sqlalchemy[asyncio]>=2.0.52,<2.1",
