@@ -58,3 +58,12 @@ groups:
         annotations:
           summary: "OpsPilot staging is not ready"
           description: "The staging readiness endpoint has failed for more than 30 seconds. One or more required dependencies may be unavailable."
+
+      - alert: OpsPilotOutboxBacklog
+        expr: opspilot_outbox_pending_events{job="opspilot-outbox-dispatcher"} > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OpsPilot outbox backlog detected"
+          description: "One or more transactional outbox events have remained unpublished for more than 2 minutes."

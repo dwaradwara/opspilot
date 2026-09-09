@@ -1,12 +1,17 @@
-import asyncio
+﻿import asyncio
 import json
 import logging
 
+from prometheus_client import start_http_server
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
 from app.core.config import settings
 from app.core.logging import configure_logging
+from worker.metrics import (
+    WORKER_EVENTS_PROCESSED_TOTAL,
+    WORKER_REDIS_RECONNECTS_TOTAL,
+)
 
 
 configure_logging()
@@ -14,7 +19,9 @@ logger = logging.getLogger("opspilot.worker")
 
 
 async def run_worker() -> None:
+    start_http_server(9102)
     logger.info("Worker started")
+    logger.info("Worker metrics server started", extra={"port": 9102})
 
     while True:
         redis = Redis.from_url(
@@ -46,10 +53,16 @@ async def run_worker() -> None:
                         },
                     )
 
+                    WORKER_EVENTS_PROCESSED_TOTAL.labels(
+                        event_type="ticket_created"
+                    ).inc()
+
         except asyncio.CancelledError:
             raise
 
         except RedisError as exc:
+            WORKER_REDIS_RECONNECTS_TOTAL.inc()
+
             logger.error(
                 "Redis unavailable; worker will retry",
                 extra={"error": str(exc)},
