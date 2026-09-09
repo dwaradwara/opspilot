@@ -4,9 +4,9 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
+from app.models.outbox_event import OutboxEvent
 from app.models.ticket import Ticket
 from app.schemas.ticket import TicketCreate, TicketRead, TicketUpdate
-from app.services.jobs import enqueue_ticket_created
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -21,9 +21,20 @@ async def create_ticket(payload: TicketCreate, db: DbSession, current_user: Curr
         priority=payload.priority,
     )
     db.add(ticket)
+    await db.flush()
+
+    outbox_event = OutboxEvent(
+        event_type="ticket_created",
+        payload={
+            "type": "ticket_created",
+            "ticket_id": str(ticket.id),
+            "organization_id": str(ticket.organization_id),
+        },
+    )
+    db.add(outbox_event)
+
     await db.commit()
     await db.refresh(ticket)
-    await enqueue_ticket_created(str(ticket.id), str(ticket.organization_id))
     return ticket
 
 

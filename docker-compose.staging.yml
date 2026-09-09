@@ -49,6 +49,16 @@ services:
       redis:
         condition: service_healthy
 
+  outbox-dispatcher:
+    build: .
+    env_file: .env.staging
+    command: ["python", "-m", "app.services.outbox_dispatcher"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   prometheus:
     image: prom/prometheus:v3.5.0
     command:

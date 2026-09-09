@@ -49,3 +49,12 @@ groups:
         annotations:
           summary: "OpsPilot staging endpoint is unavailable"
           description: "The synthetic HTTP probe against the staging Nginx endpoint has failed for more than 30 seconds."
+
+      - alert: OpsPilotStagingNotReady
+        expr: probe_success{job="opspilot-staging-readiness-probe"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "OpsPilot staging is not ready"
+          description: "The staging readiness endpoint has failed for more than 30 seconds. One or more required dependencies may be unavailable."
