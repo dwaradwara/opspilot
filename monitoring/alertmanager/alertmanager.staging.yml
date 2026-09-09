@@ -21,3 +21,15 @@ receivers:
           *Severity:* {{ .CommonLabels.severity }}
           *Summary:* {{ .CommonAnnotations.summary }}
           *Description:* {{ .CommonAnnotations.description }}
+inhibit_rules:
+  # Critical service-health failures suppress generic HTTP symptom alerts.
+  - source_matchers:
+      - 'alertname=~"OpsPilotAPIDown|OpsPilotStagingEndpointDown|OpsPilotStagingNotReady"'
+    target_matchers:
+      - 'alertname=~"OpsPilotHigh5xxRate|OpsPilotHighP95Latency"'
+
+  # If the staging endpoint itself is down, readiness failure is redundant.
+  - source_matchers:
+      - 'alertname="OpsPilotStagingEndpointDown"'
+    target_matchers:
+      - 'alertname="OpsPilotStagingNotReady"'
