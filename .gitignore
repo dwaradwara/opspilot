@@ -12,3 +12,6 @@ htmlcov/
 
 # Alertmanager local secrets
 monitoring/alertmanager/secrets/
+
+# Staging environment secrets
+.env.staging
