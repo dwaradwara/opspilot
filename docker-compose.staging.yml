@@ -57,7 +57,7 @@ services:
     ports:
       - "19090:9090"
     volumes:
-      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./monitoring/alerts.staging.yml:/etc/prometheus/alerts.yml:ro
       - ./monitoring/prometheus.staging.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     depends_on:
@@ -86,6 +86,17 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+
+  blackbox:
+    image: prom/blackbox-exporter:v0.27.0
+    command:
+      - "--config.file=/etc/blackbox_exporter/blackbox.yml"
+    ports:
+      - "19115:9115"
+    volumes:
+      - ./monitoring/blackbox.yml:/etc/blackbox_exporter/blackbox.yml:ro
+    depends_on:
+      - nginx
 
   nginx:
     image: nginx:1.28-alpine

@@ -93,3 +93,35 @@ A proxy-level Nginx error metric or log-derived alert should be added to detect 
 - Add an alert for elevated proxy 502/504 responses.
 - Validate upstream connectivity during deployment.
 - Maintain separate staging Nginx configuration for destructive testing.
+
+## Remediation Implemented
+
+Following the incident, synthetic monitoring was added using Prometheus Blackbox Exporter.
+
+The staging Nginx endpoint is now continuously probed through:
+
+`http://nginx/health`
+
+A successful request produces:
+
+`probe_success = 1`
+
+A failed request such as an Nginx-generated HTTP 502 produces:
+
+`probe_success = 0`
+
+A new Prometheus alert named:
+
+`OpsPilotStagingEndpointDown`
+
+fires when the synthetic probe remains unsuccessful for more than 30 seconds.
+
+The alert was validated end-to-end:
+
+`Nginx 502 -> Blackbox probe failure -> Prometheus alert -> Alertmanager -> Slack FIRING`
+
+After correcting the upstream configuration:
+
+`HTTP 200 -> probe recovery -> alert resolved -> Slack RESOLVED`
+
+This closes the monitoring gap identified during INC-001.
