@@ -1,18 +1,26 @@
+﻿import logging
 import uuid
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
+from app.core.config import settings
 from app.models.outbox_event import OutboxEvent
 from app.models.ticket import Ticket
 from app.schemas.ticket import TicketCreate, TicketRead, TicketUpdate
 
+
 router = APIRouter(prefix="/tickets", tags=["tickets"])
+logger = logging.getLogger("opspilot.tickets")
 
 
 @router.post("", response_model=TicketRead, status_code=status.HTTP_201_CREATED)
-async def create_ticket(payload: TicketCreate, db: DbSession, current_user: CurrentUser) -> Ticket:
+async def create_ticket(
+    payload: TicketCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> Ticket:
     ticket = Ticket(
         organization_id=current_user.organization_id,
         created_by_id=current_user.id,
@@ -20,44 +28,70 @@ async def create_ticket(payload: TicketCreate, db: DbSession, current_user: Curr
         description=payload.description,
         priority=payload.priority,
     )
+
     db.add(ticket)
     await db.flush()
 
-    outbox_event = OutboxEvent(
-        event_type="ticket_created",
-        payload={
-            "type": "ticket_created",
-            "ticket_id": str(ticket.id),
-            "organization_id": str(ticket.organization_id),
-        },
-    )
-    db.add(outbox_event)
+    if settings.feature_ticket_notifications_enabled:
+        outbox_event = OutboxEvent(
+            event_type="ticket_created",
+            payload={
+                "type": "ticket_created",
+                "ticket_id": str(ticket.id),
+                "organization_id": str(ticket.organization_id),
+            },
+        )
+
+        db.add(outbox_event)
+
+    else:
+        logger.warning(
+            "Ticket notification feature disabled; outbox event skipped",
+            extra={
+                "ticket_id": str(ticket.id),
+                "organization_id": str(ticket.organization_id),
+            },
+        )
 
     await db.commit()
     await db.refresh(ticket)
+
     return ticket
 
 
 @router.get("", response_model=list[TicketRead])
-async def list_tickets(db: DbSession, current_user: CurrentUser) -> list[Ticket]:
+async def list_tickets(
+    db: DbSession,
+    current_user: CurrentUser,
+) -> list[Ticket]:
     result = await db.scalars(
         select(Ticket)
         .where(Ticket.organization_id == current_user.organization_id)
         .order_by(Ticket.created_at.desc())
     )
+
     return list(result)
 
 
 @router.get("/{ticket_id}", response_model=TicketRead)
-async def get_ticket(ticket_id: uuid.UUID, db: DbSession, current_user: CurrentUser) -> Ticket:
+async def get_ticket(
+    ticket_id: uuid.UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> Ticket:
     ticket = await db.scalar(
         select(Ticket).where(
             Ticket.id == ticket_id,
             Ticket.organization_id == current_user.organization_id,
         )
     )
+
     if ticket is None:
-        raise HTTPException(status_code=404, detail="Ticket not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Ticket not found",
+        )
+
     return ticket
 
 
@@ -74,12 +108,17 @@ async def update_ticket(
             Ticket.organization_id == current_user.organization_id,
         )
     )
+
     if ticket is None:
-        raise HTTPException(status_code=404, detail="Ticket not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Ticket not found",
+        )
 
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(ticket, field, value)
 
     await db.commit()
     await db.refresh(ticket)
+
     return ticket
