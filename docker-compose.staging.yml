@@ -27,6 +27,7 @@ services:
       retries: 10
 
   api:
+    image: ${OPSPILOT_IMAGE:-opspilot:staging-local}
     build: .
     env_file: .env.staging
     command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
@@ -42,6 +43,7 @@ services:
       retries: 10
 
   worker:
+    image: ${OPSPILOT_IMAGE:-opspilot:staging-local}
     build: .
     env_file: .env.staging
     command: ["python", "-m", "worker.main"]
@@ -50,6 +52,7 @@ services:
         condition: service_healthy
 
   outbox-dispatcher:
+    image: ${OPSPILOT_IMAGE:-opspilot:staging-local}
     build: .
     env_file: .env.staging
     command: ["python", "-m", "app.services.outbox_dispatcher"]
