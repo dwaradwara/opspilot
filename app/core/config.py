@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     redis_retry_attempts: int = 3
     redis_retry_base_delay_seconds: float = 0.5
     redis_retry_max_delay_seconds: float = 2.0
+    redis_circuit_failure_threshold: int = 3
+    redis_circuit_recovery_seconds: float = 10.0
 
     otel_service_name: str = "opspilot-api"
     otel_exporter_otlp_endpoint: str = "http://tempo:4318/v1/traces"

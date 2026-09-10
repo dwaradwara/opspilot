@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -8,6 +8,10 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy import func, select
 
+from app.core.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerOpenError,
+)
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.db.session import AsyncSessionLocal
@@ -20,6 +24,11 @@ from app.services.outbox_metrics import (
 
 configure_logging()
 logger = logging.getLogger("opspilot.outbox")
+
+redis_circuit_breaker = CircuitBreaker(
+    failure_threshold=settings.redis_circuit_failure_threshold,
+    recovery_seconds=settings.redis_circuit_recovery_seconds,
+)
 
 
 async def publish_with_retry(
@@ -114,6 +123,25 @@ async def dispatch_once() -> bool:
         if event is None:
             return False
 
+        event_id = str(event.id)
+        event_type = event.event_type
+
+        try:
+            redis_circuit_breaker.before_request()
+        except CircuitBreakerOpenError as exc:
+            await session.rollback()
+
+            logger.warning(
+                "Redis circuit breaker open; publish deferred for %.2f seconds",
+                exc.retry_after_seconds,
+                extra={
+                    "event_id": event_id,
+                    "event_type": event_type,
+                },
+            )
+
+            return False
+
         redis = Redis.from_url(
             settings.redis_url,
             decode_responses=True,
@@ -124,23 +152,67 @@ async def dispatch_once() -> bool:
 
         message_payload = {
             **event.payload,
-            "event_id": str(event.id),
-            "event_type": event.event_type,
+            "event_id": event_id,
+            "event_type": event_type,
         }
 
         try:
-            failed_attempts = await publish_with_retry(
-                redis=redis,
-                message_payload=message_payload,
-                event_id=str(event.id),
-                event_type=event.event_type,
-            )
+            try:
+                failed_attempts = await publish_with_retry(
+                    redis=redis,
+                    message_payload=message_payload,
+                    event_id=event_id,
+                    event_type=event_type,
+                )
+
+            except asyncio.CancelledError:
+                raise
+
+            except (RedisError, asyncio.TimeoutError) as exc:
+                redis_circuit_breaker.record_failure()
+
+                event.attempts += settings.redis_retry_attempts + 1
+                event.last_error = str(exc)[:1000]
+
+                await session.commit()
+
+                OUTBOX_PUBLISH_TOTAL.labels(result="failure").inc()
+
+                logger.exception(
+                    "Outbox publish failed",
+                    extra={
+                        "event_id": event_id,
+                        "event_type": event_type,
+                        "attempts": event.attempts,
+                        "exception_type": type(exc).__name__,
+                        "exception_message": str(exc)[:1000],
+                    },
+                )
+
+                return False
+
+            redis_circuit_breaker.record_success()
 
             event.attempts += failed_attempts
             event.published_at = datetime.now(timezone.utc)
             event.last_error = None
 
-            await session.commit()
+            try:
+                await session.commit()
+            except Exception as exc:
+                await session.rollback()
+
+                logger.exception(
+                    "Outbox state commit failed after Redis publish",
+                    extra={
+                        "event_id": event_id,
+                        "event_type": event_type,
+                        "exception_type": type(exc).__name__,
+                        "exception_message": str(exc)[:1000],
+                    },
+                )
+
+                return False
 
             OUTBOX_PUBLISH_TOTAL.labels(result="success").inc()
             OUTBOX_PENDING_EVENTS.set(max((pending_count or 1) - 1, 0))
@@ -148,37 +220,13 @@ async def dispatch_once() -> bool:
             logger.info(
                 "Outbox event published",
                 extra={
-                    "event_id": str(event.id),
-                    "event_type": event.event_type,
+                    "event_id": event_id,
+                    "event_type": event_type,
                     "attempts": event.attempts,
                 },
             )
 
             return True
-
-        except asyncio.CancelledError:
-            raise
-
-        except Exception as exc:
-            event.attempts += settings.redis_retry_attempts + 1
-            event.last_error = str(exc)[:1000]
-
-            await session.commit()
-
-            OUTBOX_PUBLISH_TOTAL.labels(result="failure").inc()
-
-            logger.exception(
-                "Outbox publish failed",
-                extra={
-                    "event_id": str(event.id),
-                    "event_type": event.event_type,
-                    "attempts": event.attempts,
-                    "exception_type": type(exc).__name__,
-                    "exception_message": str(exc)[:1000],
-                },
-            )
-
-            return False
 
         finally:
             await redis.aclose()
