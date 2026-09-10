@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 from app.api.routes import auth, health, members, tickets
 from app.core.config import settings
 from app.core.logging import configure_logging
+from app.core.tracing import configure_tracing
+from app.db.session import engine
 from app.core.metrics import (
     HTTP_REQUEST_DURATION_SECONDS,
     HTTP_REQUESTS_IN_PROGRESS,
@@ -23,6 +25,8 @@ app = FastAPI(
     version="0.1.0",
     description="OpsPilot production-support and reliability engineering platform",
 )
+
+configure_tracing(app, engine)
 
 
 @app.middleware("http")

@@ -1,4 +1,4 @@
-﻿from functools import lru_cache
+from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,6 +19,10 @@ class Settings(BaseSettings):
 
     redis_url: str
     redis_queue_key: str = "opspilot:jobs"
+
+    otel_service_name: str = "opspilot-api"
+    otel_exporter_otlp_endpoint: str = "http://tempo:4318/v1/traces"
+    otel_environment: str = "development"
 
     model_config = SettingsConfigDict(
         env_file=".env",

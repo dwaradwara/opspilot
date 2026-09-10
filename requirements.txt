@@ -13,3 +13,10 @@ httpx>=0.28,<1
 pytest>=8.4,<9
 pytest-asyncio>=1.1,<2
 prometheus-client>=0.22,<1
+opentelemetry-api<2
+opentelemetry-sdk<2
+opentelemetry-exporter-otlp<2
+opentelemetry-instrumentation-fastapi==0.65b0
+opentelemetry-instrumentation-sqlalchemy==0.65b0
+opentelemetry-instrumentation-redis==0.65b0
+opentelemetry-instrumentation-httpx==0.65b0
