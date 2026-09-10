@@ -1,13 +1,17 @@
-﻿import asyncio
+import asyncio
 import json
 import logging
+import uuid
 
 from prometheus_client import start_http_server
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
+from sqlalchemy.dialects.postgresql import insert
 
 from app.core.config import settings
 from app.core.logging import configure_logging
+from app.db.session import AsyncSessionLocal
+from app.models.processed_event import ProcessedEvent
 from worker.metrics import (
     WORKER_EVENTS_PROCESSED_TOTAL,
     WORKER_REDIS_RECONNECTS_TOTAL,
@@ -16,6 +20,88 @@ from worker.metrics import (
 
 configure_logging()
 logger = logging.getLogger("opspilot.worker")
+
+CONSUMER_NAME = "ticket-worker"
+
+
+async def process_event(payload: dict) -> None:
+    event_id_raw = payload.get("event_id")
+    event_type = payload.get("event_type") or payload.get("type")
+
+    if not event_id_raw:
+        logger.warning(
+            "Event missing event_id; skipping",
+            extra={"event_type": event_type},
+        )
+        return
+
+    if event_type != "ticket_created":
+        logger.warning(
+            "Unsupported event type; skipping",
+            extra={
+                "event_id": event_id_raw,
+                "event_type": event_type,
+            },
+        )
+        return
+
+    try:
+        event_id = uuid.UUID(event_id_raw)
+    except (ValueError, TypeError):
+        logger.warning(
+            "Invalid event_id; skipping",
+            extra={
+                "event_id": event_id_raw,
+                "event_type": event_type,
+            },
+        )
+        return
+
+    async with AsyncSessionLocal() as session:
+        statement = (
+            insert(ProcessedEvent)
+            .values(
+                event_id=event_id,
+                consumer_name=CONSUMER_NAME,
+                event_type=event_type,
+            )
+            .on_conflict_do_nothing(
+                index_elements=["event_id", "consumer_name"]
+            )
+            .returning(ProcessedEvent.event_id)
+        )
+
+        result = await session.execute(statement)
+        claimed_event_id = result.scalar_one_or_none()
+
+        if claimed_event_id is None:
+            await session.rollback()
+
+            logger.info(
+                "Duplicate event skipped",
+                extra={
+                    "event_id": str(event_id),
+                    "event_type": event_type,
+                    "consumer_name": CONSUMER_NAME,
+                },
+            )
+            return
+
+        logger.info(
+            "Processed ticket_created notification",
+            extra={
+                "event_id": str(event_id),
+                "ticket_id": payload.get("ticket_id"),
+                "organization_id": payload.get("organization_id"),
+                "consumer_name": CONSUMER_NAME,
+            },
+        )
+
+        await session.commit()
+
+        WORKER_EVENTS_PROCESSED_TOTAL.labels(
+            event_type="ticket_created"
+        ).inc()
 
 
 async def run_worker() -> None:
@@ -42,20 +128,17 @@ async def run_worker() -> None:
                     continue
 
                 _, raw_payload = item
-                payload = json.loads(raw_payload)
 
-                if payload.get("type") == "ticket_created":
-                    logger.info(
-                        "Processed ticket_created notification",
-                        extra={
-                            "ticket_id": payload.get("ticket_id"),
-                            "organization_id": payload.get("organization_id"),
-                        },
+                try:
+                    payload = json.loads(raw_payload)
+                except json.JSONDecodeError as exc:
+                    logger.error(
+                        "Malformed queue message; skipping",
+                        extra={"error": str(exc)},
                     )
+                    continue
 
-                    WORKER_EVENTS_PROCESSED_TOTAL.labels(
-                        event_type="ticket_created"
-                    ).inc()
+                await process_event(payload)
 
         except asyncio.CancelledError:
             raise

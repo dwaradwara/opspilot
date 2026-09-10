@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from prometheus_client import start_http_server
 from redis.asyncio import Redis
+from redis.exceptions import RedisError
 from sqlalchemy import func, select
 
 from app.core.config import settings
@@ -19,6 +20,75 @@ from app.services.outbox_metrics import (
 
 configure_logging()
 logger = logging.getLogger("opspilot.outbox")
+
+
+async def publish_with_retry(
+    redis: Redis,
+    message_payload: dict,
+    event_id: str,
+    event_type: str,
+) -> int:
+    max_attempts = settings.redis_retry_attempts + 1
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            await asyncio.wait_for(
+                redis.rpush(
+                    settings.redis_queue_key,
+                    json.dumps(message_payload),
+                ),
+                timeout=settings.redis_operation_timeout_seconds,
+            )
+
+            if attempt > 1:
+                logger.info(
+                    "Outbox publish recovered after retry",
+                    extra={
+                        "event_id": event_id,
+                        "event_type": event_type,
+                        "attempts": attempt,
+                    },
+                )
+
+            return attempt - 1
+
+        except asyncio.CancelledError:
+            raise
+
+        except (RedisError, asyncio.TimeoutError) as exc:
+            if attempt >= max_attempts:
+                logger.error(
+                    "Outbox publish retries exhausted",
+                    extra={
+                        "event_id": event_id,
+                        "event_type": event_type,
+                        "attempts": attempt,
+                        "exception_type": type(exc).__name__,
+                        "exception_message": str(exc)[:1000],
+                    },
+                )
+                raise
+
+            delay = min(
+                settings.redis_retry_base_delay_seconds
+                * (2 ** (attempt - 1)),
+                settings.redis_retry_max_delay_seconds,
+            )
+
+            logger.warning(
+                "Outbox publish attempt failed; retrying",
+                extra={
+                    "event_id": event_id,
+                    "event_type": event_type,
+                    "attempts": attempt,
+                    "exception_type": type(exc).__name__,
+                    "exception_message": str(exc)[:1000],
+                },
+            )
+
+            await asyncio.sleep(delay)
+
+    raise RuntimeError("Redis publish retry loop exited unexpectedly")
 
 
 async def dispatch_once() -> bool:
@@ -47,14 +117,26 @@ async def dispatch_once() -> bool:
         redis = Redis.from_url(
             settings.redis_url,
             decode_responses=True,
+            socket_connect_timeout=settings.redis_operation_timeout_seconds,
+            socket_timeout=settings.redis_operation_timeout_seconds,
+            retry_on_timeout=False,
         )
 
+        message_payload = {
+            **event.payload,
+            "event_id": str(event.id),
+            "event_type": event.event_type,
+        }
+
         try:
-            await redis.rpush(
-                settings.redis_queue_key,
-                json.dumps(event.payload),
+            failed_attempts = await publish_with_retry(
+                redis=redis,
+                message_payload=message_payload,
+                event_id=str(event.id),
+                event_type=event.event_type,
             )
 
+            event.attempts += failed_attempts
             event.published_at = datetime.now(timezone.utc)
             event.last_error = None
 
@@ -68,14 +150,18 @@ async def dispatch_once() -> bool:
                 extra={
                     "event_id": str(event.id),
                     "event_type": event.event_type,
+                    "attempts": event.attempts,
                 },
             )
 
             return True
 
+        except asyncio.CancelledError:
+            raise
+
         except Exception as exc:
-            event.attempts += 1
-            event.last_error = str(exc)
+            event.attempts += settings.redis_retry_attempts + 1
+            event.last_error = str(exc)[:1000]
 
             await session.commit()
 
@@ -87,6 +173,8 @@ async def dispatch_once() -> bool:
                     "event_id": str(event.id),
                     "event_type": event.event_type,
                     "attempts": event.attempts,
+                    "exception_type": type(exc).__name__,
+                    "exception_message": str(exc)[:1000],
                 },
             )
 
