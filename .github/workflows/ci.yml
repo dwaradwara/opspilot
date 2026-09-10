@@ -79,7 +79,7 @@ jobs:
 
     steps:
       - name: Deploy immutable image to staging
-        shell: powershell
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         working-directory: 'D:\project ops\opspilot-phase1'
         env:
           OPSPILOT_IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
@@ -101,7 +101,7 @@ jobs:
           docker compose --env-file .env.staging -f docker-compose.staging.yml restart nginx
 
       - name: Verify staging health
-        shell: powershell
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         working-directory: 'D:\project ops\opspilot-phase1'
         run: |
           $healthy = $false
@@ -144,7 +144,7 @@ jobs:
 
       - name: Show staging status
         if: always()
-        shell: powershell
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         working-directory: 'D:\project ops\opspilot-phase1'
         run: |
           docker compose --env-file .env.staging -f docker-compose.staging.yml ps
