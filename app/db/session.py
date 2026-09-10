@@ -1,8 +1,9 @@
-﻿from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
+from app.db.metrics import register_db_pool_metrics
 
 
 engine = create_async_engine(
@@ -12,6 +13,8 @@ engine = create_async_engine(
     max_overflow=settings.db_max_overflow,
     pool_timeout=settings.db_pool_timeout_seconds,
 )
+
+register_db_pool_metrics(engine, settings.db_max_overflow)
 
 AsyncSessionLocal = async_sessionmaker(
     engine,

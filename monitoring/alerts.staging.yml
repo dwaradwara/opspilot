@@ -67,3 +67,17 @@ groups:
         annotations:
           summary: "OpsPilot outbox backlog detected"
           description: "One or more transactional outbox events have remained unpublished for more than 2 minutes."
+
+      - alert: OpsPilotDBPoolHighUtilization
+        expr: |
+          (
+            opspilot_db_pool_checked_out_connections{job="opspilot-api"}
+            /
+            clamp_min(opspilot_db_pool_capacity{job="opspilot-api"}, 1)
+          ) >= 0.80
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OpsPilot database connection pool utilization is high"
+          description: "At least 80% of the available SQLAlchemy database connection capacity has been checked out for more than 1 minute."

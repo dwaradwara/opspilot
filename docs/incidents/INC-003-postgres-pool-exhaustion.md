@@ -105,3 +105,59 @@ The API recovered immediately without a restart.
 INC-003 demonstrated:
 
 Failure injection -> connection-pool exhaustion -> HTTP 500 -> diagnosis -> root-cause confirmation -> remediation -> HTTP 200 recovery without API restart.
+## Prevention and Observability Improvements
+
+After reproducing the connection-pool exhaustion incident, OpsPilot was updated so database pool pressure can be detected before requests begin failing.
+
+### Added Metrics
+
+The API now exposes SQLAlchemy pool metrics through Prometheus:
+
+- opspilot_db_pool_size
+- opspilot_db_pool_max_overflow
+- opspilot_db_pool_capacity
+- opspilot_db_pool_checked_out_connections
+- opspilot_db_pool_checked_in_connections
+- opspilot_db_pool_overflow_connections
+
+Normal staging configuration:
+
+- Base pool size: 5
+- Maximum overflow: 10
+- Maximum connection capacity: 15
+- Pool timeout: 30 seconds
+
+### Proactive Alert
+
+A Prometheus alert named `OpsPilotDBPoolHighUtilization` was added.
+
+The alert fires when at least 80% of total SQLAlchemy connection capacity remains checked out for more than 1 minute.
+
+During validation:
+
+- 12 concurrent requests were blocked
+- 12 of 15 available connections were checked out
+- Pool utilization reached 80%
+- 7 overflow connections were in use
+- Prometheus changed the alert state to firing
+- Alertmanager received the alert as active
+- Slack delivered the firing notification
+
+### Recovery Validation
+
+After terminating the PostgreSQL backend holding the blocking table lock:
+
+- Blocked requests completed
+- Checked-out connections returned from 12 to 0
+- Overflow connections returned from 7 to 0
+- 5 idle connections remained available in the base pool
+- Prometheus returned the alert to inactive
+- Slack delivered the resolved notification
+
+### Operational Improvement
+
+The system can now identify sustained connection-pool pressure before full exhaustion occurs.
+
+This changes the operational workflow from reactive failure diagnosis to proactive detection:
+
+Database contention -> pool utilization rises -> Prometheus warning -> engineer investigates -> blocker removed -> pool recovers -> alert resolves.
