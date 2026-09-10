@@ -1,4 +1,4 @@
-from functools import lru_cache
+﻿from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,10 +13,18 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
 
     database_url: str
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    db_pool_timeout_seconds: float = 30.0
+
     redis_url: str
     redis_queue_key: str = "opspilot:jobs"
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
 
 @lru_cache
