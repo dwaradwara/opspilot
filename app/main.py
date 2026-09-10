@@ -68,7 +68,7 @@ async def request_context(request: Request, call_next):
 
         return response
 
-    except Exception:
+    except Exception as exc:
         duration_seconds = time.perf_counter() - started
         duration_ms = round(duration_seconds * 1000, 2)
 
@@ -94,6 +94,8 @@ async def request_context(request: Request, call_next):
                 "path": request.url.path,
                 "status_code": 500,
                 "duration_ms": duration_ms,
+                "exception_type": type(exc).__name__,
+                "exception_message": str(exc)[:1000],
             },
         )
 

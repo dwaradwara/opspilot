@@ -86,6 +86,30 @@ services:
       - ./monitoring/alertmanager/secrets/slack-webhook-url:/etc/alertmanager/secrets/slack-webhook-url:ro
       - alertmanager_data:/alertmanager
 
+  loki:
+    image: grafana/loki:3.5.0
+    command:
+      - "-config.file=/etc/loki/loki.yml"
+    ports:
+      - "13100:3100"
+    volumes:
+      - ./monitoring/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+  alloy:
+    image: grafana/alloy:latest
+    command:
+      - "run"
+      - "/etc/alloy/config.alloy"
+      - "--storage.path=/var/lib/alloy/data"
+      - "--server.http.listen-addr=0.0.0.0:12345"
+    ports:
+      - "12345:12345"
+    volumes:
+      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    depends_on:
+      - loki
   grafana:
     image: grafana/grafana:12.1.1
     ports:
@@ -124,3 +148,5 @@ volumes:
   prometheus_data:
   grafana_data:
   alertmanager_data:
+  loki_data:
+  alloy_data:
