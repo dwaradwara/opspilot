@@ -1,0 +1,81 @@
+﻿groups:
+  - name: opspilot-slo-recording-rules
+    rules:
+      - record: opspilot:sli_availability_5m
+        expr: |
+          1 -
+          (
+            (
+              sum(rate(opspilot_http_requests_total{route!="/metrics",status_code=~"5.."}[5m]))
+              or vector(0)
+            )
+            /
+            clamp_min(
+              sum(rate(opspilot_http_requests_total{route!="/metrics"}[5m])),
+              0.001
+            )
+          )
+
+      - record: opspilot:sli_error_rate_5m
+        expr: |
+          (
+            sum(rate(opspilot_http_requests_total{route!="/metrics",status_code=~"5.."}[5m]))
+            or vector(0)
+          )
+          /
+          clamp_min(
+            sum(rate(opspilot_http_requests_total{route!="/metrics"}[5m])),
+            0.001
+          )
+
+      - record: opspilot:sli_latency_le_500ms_5m
+        expr: |
+          sum(rate(opspilot_http_request_duration_seconds_bucket{route!="/metrics",le="0.5"}[5m]))
+          /
+          clamp_min(
+            sum(rate(opspilot_http_request_duration_seconds_count{route!="/metrics"}[5m])),
+            0.001
+          )
+
+      - record: opspilot:slo_availability_target
+        expr: vector(0.999)
+
+      - record: opspilot:slo_latency_target
+        expr: vector(0.95)
+
+      - record: opspilot:slo_error_budget_fraction
+        expr: vector(0.001)
+
+      - record: opspilot:slo_availability_burn_rate_5m
+        expr: |
+          opspilot:sli_error_rate_5m
+          /
+          0.001
+
+      - record: opspilot:slo_latency_burn_rate_5m
+        expr: |
+          (1 - opspilot:sli_latency_le_500ms_5m)
+          /
+          0.05
+
+      - record: opspilot:sli_error_rate_1h
+        expr: |
+          (
+            sum(rate(opspilot_http_requests_total{route!="/metrics",status_code=~"5.."}[1h]))
+            or vector(0)
+          )
+          /
+          clamp_min(
+            sum(rate(opspilot_http_requests_total{route!="/metrics"}[1h])),
+            0.001
+          )
+
+      - record: opspilot:sli_availability_1h
+        expr: |
+          1 - opspilot:sli_error_rate_1h
+
+      - record: opspilot:slo_availability_burn_rate_1h
+        expr: |
+          opspilot:sli_error_rate_1h
+          /
+          0.001

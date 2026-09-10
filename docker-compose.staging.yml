@@ -68,6 +68,7 @@ services:
       - "19090:9090"
     volumes:
       - ./monitoring/alerts.staging.yml:/etc/prometheus/alerts.yml:ro
+      - ./monitoring/slo.staging.yml:/etc/prometheus/slo.yml:ro
       - ./monitoring/prometheus.staging.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     depends_on:

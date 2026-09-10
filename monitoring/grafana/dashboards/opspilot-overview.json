@@ -341,6 +341,279 @@
                                    ],
                        "title":  "Worker Events Processed",
                        "type":  "timeseries"
+                   },
+                   {
+                       "datasource":  "Prometheus",
+                       "fieldConfig":  {
+                                           "defaults":  {
+                                                            "unit":  "percentunit",
+                                                            "decimals":  2,
+                                                            "mappings":  [
+
+                                                                         ],
+                                                            "thresholds":  {
+                                                                               "mode":  "absolute",
+                                                                               "steps":  [
+                                                                                             {
+                                                                                                 "color":  "red",
+                                                                                                 "value":  null
+                                                                                             },
+                                                                                             {
+                                                                                                 "color":  "green",
+                                                                                                 "value":  0.999
+                                                                                             }
+                                                                                         ]
+                                                                           }
+                                                        }
+                                       },
+                       "gridPos":  {
+                                       "h":  5,
+                                       "w":  8,
+                                       "x":  0,
+                                       "y":  26
+                                   },
+                       "id":  11,
+                       "options":  {
+                                       "colorMode":  "value",
+                                       "graphMode":  "none",
+                                       "justifyMode":  "auto",
+                                       "orientation":  "auto",
+                                       "reduceOptions":  {
+                                                             "calcs":  [
+                                                                           "lastNotNull"
+                                                                       ],
+                                                             "fields":  "",
+                                                             "values":  false
+                                                         },
+                                       "textMode":  "auto"
+                                   },
+                       "targets":  [
+                                       {
+                                           "expr":  "opspilot:sli_availability_5m",
+                                           "instant":  true,
+                                           "refId":  "A",
+                                           "legendFormat":  "Availability"
+                                       }
+                                   ],
+                       "title":  "Availability SLI - 5m",
+                       "type":  "stat"
+                   },
+                   {
+                       "datasource":  "Prometheus",
+                       "fieldConfig":  {
+                                           "defaults":  {
+                                                            "unit":  "percentunit",
+                                                            "decimals":  2,
+                                                            "mappings":  [
+
+                                                                         ],
+                                                            "thresholds":  {
+                                                                               "mode":  "absolute",
+                                                                               "steps":  [
+                                                                                             {
+                                                                                                 "color":  "green",
+                                                                                                 "value":  null
+                                                                                             },
+                                                                                             {
+                                                                                                 "color":  "red",
+                                                                                                 "value":  0.001
+                                                                                             }
+                                                                                         ]
+                                                                           }
+                                                        }
+                                       },
+                       "gridPos":  {
+                                       "h":  5,
+                                       "w":  8,
+                                       "x":  8,
+                                       "y":  26
+                                   },
+                       "id":  12,
+                       "options":  {
+                                       "colorMode":  "value",
+                                       "graphMode":  "none",
+                                       "justifyMode":  "auto",
+                                       "orientation":  "auto",
+                                       "reduceOptions":  {
+                                                             "calcs":  [
+                                                                           "lastNotNull"
+                                                                       ],
+                                                             "fields":  "",
+                                                             "values":  false
+                                                         },
+                                       "textMode":  "auto"
+                                   },
+                       "targets":  [
+                                       {
+                                           "expr":  "opspilot:sli_error_rate_5m",
+                                           "instant":  true,
+                                           "refId":  "A",
+                                           "legendFormat":  "Error Rate"
+                                       }
+                                   ],
+                       "title":  "HTTP Error Rate - 5m",
+                       "type":  "stat"
+                   },
+                   {
+                       "datasource":  "Prometheus",
+                       "fieldConfig":  {
+                                           "defaults":  {
+                                                            "unit":  "percentunit",
+                                                            "decimals":  2,
+                                                            "mappings":  [
+
+                                                                         ],
+                                                            "thresholds":  {
+                                                                               "mode":  "absolute",
+                                                                               "steps":  [
+                                                                                             {
+                                                                                                 "color":  "red",
+                                                                                                 "value":  null
+                                                                                             },
+                                                                                             {
+                                                                                                 "color":  "green",
+                                                                                                 "value":  0.95
+                                                                                             }
+                                                                                         ]
+                                                                           }
+                                                        }
+                                       },
+                       "gridPos":  {
+                                       "h":  5,
+                                       "w":  8,
+                                       "x":  16,
+                                       "y":  26
+                                   },
+                       "id":  13,
+                       "options":  {
+                                       "colorMode":  "value",
+                                       "graphMode":  "none",
+                                       "justifyMode":  "auto",
+                                       "orientation":  "auto",
+                                       "reduceOptions":  {
+                                                             "calcs":  [
+                                                                           "lastNotNull"
+                                                                       ],
+                                                             "fields":  "",
+                                                             "values":  false
+                                                         },
+                                       "textMode":  "auto"
+                                   },
+                       "targets":  [
+                                       {
+                                           "expr":  "opspilot:sli_latency_le_500ms_5m",
+                                           "instant":  true,
+                                           "refId":  "A",
+                                           "legendFormat":  "Latency SLI"
+                                       }
+                                   ],
+                       "title":  "Requests \u003c= 500ms - 5m",
+                       "type":  "stat"
+                   },
+                   {
+                       "datasource":  "Prometheus",
+                       "fieldConfig":  {
+                                           "defaults":  {
+                                                            "unit":  "none",
+                                                            "decimals":  2
+                                                        }
+                                       },
+                       "gridPos":  {
+                                       "h":  8,
+                                       "w":  12,
+                                       "x":  0,
+                                       "y":  31
+                                   },
+                       "id":  14,
+                       "targets":  [
+                                       {
+                                           "expr":  "opspilot:slo_availability_burn_rate_5m",
+                                           "legendFormat":  "5m Burn Rate",
+                                           "refId":  "A"
+                                       }
+                                   ],
+                       "title":  "Availability Error Budget Burn - 5m",
+                       "type":  "timeseries"
+                   },
+                   {
+                       "datasource":  "Prometheus",
+                       "fieldConfig":  {
+                                           "defaults":  {
+                                                            "unit":  "none",
+                                                            "decimals":  2
+                                                        }
+                                       },
+                       "gridPos":  {
+                                       "h":  8,
+                                       "w":  12,
+                                       "x":  12,
+                                       "y":  31
+                                   },
+                       "id":  15,
+                       "targets":  [
+                                       {
+                                           "expr":  "opspilot:slo_availability_burn_rate_1h",
+                                           "legendFormat":  "1h Burn Rate",
+                                           "refId":  "A"
+                                       }
+                                   ],
+                       "title":  "Availability Error Budget Burn - 1h",
+                       "type":  "timeseries"
+                   },
+                   {
+                       "datasource":  "Prometheus",
+                       "fieldConfig":  {
+                                           "defaults":  {
+                                                            "unit":  "percentunit",
+                                                            "decimals":  2,
+                                                            "mappings":  [
+
+                                                                         ]
+                                                        }
+                                       },
+                       "gridPos":  {
+                                       "h":  5,
+                                       "w":  24,
+                                       "x":  0,
+                                       "y":  39
+                                   },
+                       "id":  16,
+                       "options":  {
+                                       "colorMode":  "value",
+                                       "graphMode":  "none",
+                                       "justifyMode":  "auto",
+                                       "orientation":  "auto",
+                                       "reduceOptions":  {
+                                                             "calcs":  [
+                                                                           "lastNotNull"
+                                                                       ],
+                                                             "fields":  "",
+                                                             "values":  false
+                                                         },
+                                       "textMode":  "auto"
+                                   },
+                       "targets":  [
+                                       {
+                                           "expr":  "opspilot:slo_availability_target",
+                                           "instant":  true,
+                                           "refId":  "A",
+                                           "legendFormat":  "Availability SLO"
+                                       },
+                                       {
+                                           "expr":  "opspilot:slo_latency_target",
+                                           "instant":  true,
+                                           "refId":  "B",
+                                           "legendFormat":  "Latency SLO"
+                                       },
+                                       {
+                                           "expr":  "opspilot:slo_error_budget_fraction",
+                                           "instant":  true,
+                                           "refId":  "C",
+                                           "legendFormat":  "Error Budget"
+                                       }
+                                   ],
+                       "title":  "OpsPilot SLO Targets",
+                       "type":  "stat"
                    }
                ],
     "refresh":  "5s",
