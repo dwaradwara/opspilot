@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     redis_circuit_failure_threshold: int = 3
     redis_circuit_recovery_seconds: float = 10.0
 
+    rate_limit_enabled: bool = True
+    rate_limit_requests: int = 60
+    rate_limit_window_seconds: int = 60
+
     otel_service_name: str = "opspilot-api"
     otel_exporter_otlp_endpoint: str = "http://tempo:4318/v1/traces"
     otel_environment: str = "development"

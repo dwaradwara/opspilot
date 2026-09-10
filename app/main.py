@@ -1,21 +1,23 @@
-import logging
+﻿import logging
 import time
 import uuid
 
 from fastapi import FastAPI, Request, Response
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from fastapi.responses import JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.routes import auth, health, members, tickets
 from app.core.config import settings
 from app.core.logging import configure_logging
-from app.core.tracing import configure_tracing
-from app.db.session import engine
 from app.core.metrics import (
     HTTP_REQUEST_DURATION_SECONDS,
     HTTP_REQUESTS_IN_PROGRESS,
     HTTP_REQUESTS_TOTAL,
 )
+from app.core.rate_limiter import check_rate_limit
+from app.core.tracing import configure_tracing
+from app.db.session import engine
+
 
 configure_logging()
 logger = logging.getLogger("opspilot.api")
@@ -38,7 +40,21 @@ async def request_context(request: Request, call_next):
     HTTP_REQUESTS_IN_PROGRESS.labels(method=method).inc()
 
     try:
-        response = await call_next(request)
+        rate_limit = await check_rate_limit(request)
+
+        if rate_limit.allowed:
+            response = await call_next(request)
+        else:
+            response = JSONResponse(
+                status_code=429,
+                content={
+                    "detail": "Rate limit exceeded",
+                    "request_id": request_id,
+                },
+                headers={
+                    "Retry-After": str(rate_limit.retry_after),
+                },
+            )
 
         duration_seconds = time.perf_counter() - started
         duration_ms = round(duration_seconds * 1000, 2)
@@ -58,6 +74,8 @@ async def request_context(request: Request, call_next):
         ).observe(duration_seconds)
 
         response.headers["X-Request-ID"] = request_id
+        response.headers["X-RateLimit-Limit"] = str(rate_limit.limit)
+        response.headers["X-RateLimit-Remaining"] = str(rate_limit.remaining)
 
         logger.info(
             "Request completed",
@@ -114,12 +132,14 @@ async def request_context(request: Request, call_next):
     finally:
         HTTP_REQUESTS_IN_PROGRESS.labels(method=method).dec()
 
+
 @app.get("/metrics", include_in_schema=False)
 async def metrics() -> Response:
     return Response(
         content=generate_latest(),
         media_type=CONTENT_TYPE_LATEST,
     )
+
 
 app.include_router(health.router)
 app.include_router(auth.router, prefix="/api/v1")
