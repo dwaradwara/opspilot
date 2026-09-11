@@ -29,3 +29,10 @@ module "network" {
     "10.20.60.0/24",
   ]
 }
+
+module "security" {
+  source = "../../modules/security"
+
+  name   = "opspilot-staging"
+  vpc_id = module.network.vpc_id
+}
