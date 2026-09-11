@@ -43,3 +43,9 @@ module "database" {
   name                = "opspilot-staging"
   database_subnet_ids = module.network.database_subnet_ids
 }
+module "cache" {
+  source = "../../modules/cache"
+
+  name             = "opspilot-staging"
+  cache_subnet_ids = module.network.private_app_subnet_ids
+}
