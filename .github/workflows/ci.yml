@@ -78,6 +78,25 @@ jobs:
       cancel-in-progress: false
 
     steps:
+      - name: Capture current staging image
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        working-directory: 'D:\project ops\opspilot-phase1'
+        run: |
+          $apiContainer = docker compose --env-file .env.staging -f docker-compose.staging.yml ps -q api
+
+          if (-not $apiContainer) {
+            throw "Unable to find current staging API container"
+          }
+
+          $previousImage = docker inspect --format "{{.Config.Image}}" $apiContainer
+
+          if (-not $previousImage) {
+            throw "Unable to determine current staging image"
+          }
+
+          "PREVIOUS_IMAGE=$previousImage" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          Write-Host "Previous staging image: $previousImage"
       - name: Deploy immutable image to staging
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         working-directory: 'D:\project ops\opspilot-phase1'
@@ -142,6 +161,63 @@ jobs:
 
           Write-Host "Staging deployment verified successfully."
 
+      - name: Roll back staging on deployment failure
+        if: failure()
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        working-directory: 'D:\project ops\opspilot-phase1'
+        run: |
+          if (-not $env:PREVIOUS_IMAGE) {
+            throw "Previous staging image is unavailable; cannot roll back"
+          }
+
+          Write-Host "Rolling back to: $env:PREVIOUS_IMAGE"
+
+          $env:OPSPILOT_IMAGE = $env:PREVIOUS_IMAGE
+
+          docker pull $env:OPSPILOT_IMAGE
+
+          docker compose --env-file .env.staging -f docker-compose.staging.yml up -d `
+            --no-build `
+            --force-recreate `
+            api worker outbox-dispatcher
+
+          docker compose --env-file .env.staging -f docker-compose.staging.yml restart nginx
+
+          $recovered = $false
+
+          for ($attempt = 1; $attempt -le 12; $attempt++) {
+            try {
+              $health = Invoke-WebRequest `
+                -UseBasicParsing `
+                -Uri "http://localhost:18080/health" `
+                -TimeoutSec 5
+
+              if ($health.StatusCode -eq 200) {
+                $ready = Invoke-RestMethod `
+                  -Uri "http://localhost:18080/ready" `
+                  -TimeoutSec 5
+
+                if (
+                  $ready.status -eq "ready" -and
+                  $ready.checks.postgres -and
+                  $ready.checks.redis
+                ) {
+                  $recovered = $true
+                  break
+                }
+              }
+            }
+            catch {
+            }
+
+            Start-Sleep -Seconds 5
+          }
+
+          if (-not $recovered) {
+            throw "Rollback verification failed"
+          }
+
+          Write-Host "Rollback completed and staging recovered successfully."
       - name: Show staging status
         if: always()
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
