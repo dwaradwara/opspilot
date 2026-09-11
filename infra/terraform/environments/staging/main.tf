@@ -36,3 +36,10 @@ module "security" {
   name   = "opspilot-staging"
   vpc_id = module.network.vpc_id
 }
+
+module "database" {
+  source = "../../modules/database"
+
+  name                = "opspilot-staging"
+  database_subnet_ids = module.network.database_subnet_ids
+}
