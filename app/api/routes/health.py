@@ -12,14 +12,7 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
-async def health(response: Response) -> dict[str, str]:
-    if settings.environment.lower() == "staging":
-        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {
-            "status": "unhealthy",
-            "service": "opspilot-api",
-        }
-
+async def health() -> dict[str, str]:
     return {
         "status": "healthy",
         "service": "opspilot-api",
