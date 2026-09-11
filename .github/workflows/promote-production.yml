@@ -1,0 +1,62 @@
+name: OpsPilot Production Promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_sha:
+        description: "Exact Git commit SHA of the immutable image to promote"
+        required: true
+        type: string
+
+jobs:
+  validate-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Validate image SHA
+        shell: bash
+        run: |
+          if [[ ! "${{ inputs.image_sha }}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "image_sha must be a full 40-character Git SHA"
+            exit 1
+          fi
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify immutable production candidate
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}:${{ inputs.image_sha }}
+        run: |
+          docker pull "$IMAGE"
+          docker image inspect "$IMAGE"
+
+  promote-production:
+    needs: validate-candidate
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Record approved production candidate
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}:${{ inputs.image_sha }}
+        run: |
+          echo "## Production promotion approved" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Immutable image:" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Infrastructure deployment will be added in Phase 8." >> "$GITHUB_STEP_SUMMARY"
