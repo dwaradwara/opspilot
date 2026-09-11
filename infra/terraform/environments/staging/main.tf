@@ -49,3 +49,25 @@ module "cache" {
   name             = "opspilot-staging"
   cache_subnet_ids = module.network.private_app_subnet_ids
 }
+module "load_balancer" {
+  source = "../../modules/load_balancer"
+
+  name              = "opspilot-staging"
+  vpc_id            = module.network.vpc_id
+  public_subnet_ids = module.network.public_subnet_ids
+  security_group_id = module.security.alb_security_group_id
+  target_port       = 8000
+  health_check_path = "/health"
+}
+module "compute" {
+  source = "../../modules/compute"
+
+  name              = "opspilot-staging"
+  subnet_ids        = module.network.public_subnet_ids
+  security_group_id = module.security.app_security_group_id
+  container_image   = var.container_image
+
+  container_port = 8000
+  cpu            = 256
+  memory         = 512
+}
