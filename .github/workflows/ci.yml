@@ -8,6 +8,10 @@ on:
     branches:
       - master
 
+env:
+  AWS_REGION: eu-central-1
+  ECR_REPOSITORY: opspilot-staging
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -35,25 +39,29 @@ jobs:
           docker compose -f docker-compose.test.yml down -v
 
   publish-image:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     permissions:
       contents: read
-      packages: write
+      id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v6
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: opspilot-${{ github.run_id }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -63,164 +71,18 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy-staging:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: publish-image
-    runs-on: [self-hosted, Windows, X64, opspilot-staging]
-    timeout-minutes: 10
-
-    concurrency:
-      group: opspilot-staging
-      cancel-in-progress: false
-
-    steps:
-      - name: Capture current staging image
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
-        working-directory: 'D:\project ops\opspilot-phase1'
+      - name: Verify image in ECR
         run: |
-          $apiContainer = docker compose --env-file .env.staging -f docker-compose.staging.yml ps -q api
+          aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="${GITHUB_SHA}" \
+            --region "$AWS_REGION"
 
-          if (-not $apiContainer) {
-            throw "Unable to find current staging API container"
-          }
-
-          $previousImage = docker inspect --format "{{.Config.Image}}" $apiContainer
-
-          if (-not $previousImage) {
-            throw "Unable to determine current staging image"
-          }
-
-          "PREVIOUS_IMAGE=$previousImage" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-          Write-Host "Previous staging image: $previousImage"
-      - name: Deploy immutable image to staging
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
-        working-directory: 'D:\project ops\opspilot-phase1'
-        env:
-          OPSPILOT_IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
-          EXPECTED_SHA: ${{ github.sha }}
+      - name: Record immutable image
         run: |
-          $localSha = git rev-parse HEAD
-
-          if ($localSha -ne $env:EXPECTED_SHA) {
-            throw "Local staging checkout is $localSha but deployment expects $env:EXPECTED_SHA"
-          }
-
-          docker pull $env:OPSPILOT_IMAGE
-
-          docker compose --env-file .env.staging -f docker-compose.staging.yml up -d `
-            --no-build `
-            --force-recreate `
-            api worker outbox-dispatcher
-
-          docker compose --env-file .env.staging -f docker-compose.staging.yml restart nginx
-
-      - name: Verify staging health
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
-        working-directory: 'D:\project ops\opspilot-phase1'
-        run: |
-          $healthy = $false
-
-          for ($attempt = 1; $attempt -le 12; $attempt++) {
-            try {
-              $response = Invoke-WebRequest `
-                -UseBasicParsing `
-                -Uri "http://localhost:18080/health" `
-                -TimeoutSec 5
-
-              if ($response.StatusCode -eq 200) {
-                $healthy = $true
-                break
-              }
-            }
-            catch {
-              Start-Sleep -Seconds 5
-            }
-          }
-
-          if (-not $healthy) {
-            docker compose --env-file .env.staging -f docker-compose.staging.yml ps
-            throw "Staging health check failed"
-          }
-
-          $ready = Invoke-RestMethod `
-            -Uri "http://localhost:18080/ready" `
-            -TimeoutSec 5
-
-          if (
-            $ready.status -ne "ready" -or
-            -not $ready.checks.postgres -or
-            -not $ready.checks.redis
-          ) {
-            throw "Staging readiness check failed"
-          }
-
-          Write-Host "Staging deployment verified successfully."
-
-      - name: Roll back staging on deployment failure
-        if: failure()
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
-        working-directory: 'D:\project ops\opspilot-phase1'
-        run: |
-          if (-not $env:PREVIOUS_IMAGE) {
-            throw "Previous staging image is unavailable; cannot roll back"
-          }
-
-          Write-Host "Rolling back to: $env:PREVIOUS_IMAGE"
-
-          $env:OPSPILOT_IMAGE = $env:PREVIOUS_IMAGE
-
-          docker pull $env:OPSPILOT_IMAGE
-
-          docker compose --env-file .env.staging -f docker-compose.staging.yml up -d `
-            --no-build `
-            --force-recreate `
-            api worker outbox-dispatcher
-
-          docker compose --env-file .env.staging -f docker-compose.staging.yml restart nginx
-
-          $recovered = $false
-
-          for ($attempt = 1; $attempt -le 12; $attempt++) {
-            try {
-              $health = Invoke-WebRequest `
-                -UseBasicParsing `
-                -Uri "http://localhost:18080/health" `
-                -TimeoutSec 5
-
-              if ($health.StatusCode -eq 200) {
-                $ready = Invoke-RestMethod `
-                  -Uri "http://localhost:18080/ready" `
-                  -TimeoutSec 5
-
-                if (
-                  $ready.status -eq "ready" -and
-                  $ready.checks.postgres -and
-                  $ready.checks.redis
-                ) {
-                  $recovered = $true
-                  break
-                }
-              }
-            }
-            catch {
-            }
-
-            Start-Sleep -Seconds 5
-          }
-
-          if (-not $recovered) {
-            throw "Rollback verification failed"
-          }
-
-          Write-Host "Rollback completed and staging recovered successfully."
-      - name: Show staging status
-        if: always()
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
-        working-directory: 'D:\project ops\opspilot-phase1'
-        run: |
-          docker compose --env-file .env.staging -f docker-compose.staging.yml ps
+          echo "### OpsPilot staging image" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
