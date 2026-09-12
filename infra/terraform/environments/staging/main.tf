@@ -97,3 +97,14 @@ module "registry" {
 
   name = "opspilot-staging"
 }
+module "github_oidc" {
+  source = "../../modules/github_oidc"
+
+  name                 = "opspilot-staging"
+  github_repository    = "dwaradwara/opspilot"
+  github_branch        = "master"
+  github_owner_id      = "47715239"
+  github_repository_id = "1361514291"
+
+  ecr_repository_arn = module.registry.repository_arn
+}
