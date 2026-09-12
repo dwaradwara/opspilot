@@ -71,9 +71,24 @@ module "compute" {
   container_image   = var.container_image
   target_group_arn  = module.load_balancer.target_group_arn
 
+  database_host       = module.database.database_address
+  database_port       = module.database.database_port
+  database_name       = module.database.database_name
+  database_user       = module.database.master_username
+  database_secret_arn = module.database.master_user_secret_arn
+  jwt_secret_arn      = module.secrets.jwt_secret_arn
+
+  redis_host = module.cache.redis_primary_endpoint
+  redis_port = module.cache.redis_port
+
   container_port   = 8000
   cpu              = 256
   memory           = 512
   desired_count    = 1
   assign_public_ip = true
+}
+module "secrets" {
+  source = "../../modules/secrets"
+
+  name = "opspilot-staging"
 }

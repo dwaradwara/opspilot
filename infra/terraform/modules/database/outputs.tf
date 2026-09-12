@@ -21,3 +21,7 @@ output "master_user_secret_arn" {
   description = "ARN of the Secrets Manager secret containing the RDS master credentials"
   value       = aws_db_instance.postgres.master_user_secret[0].secret_arn
 }
+output "master_username" {
+  description = "PostgreSQL master username"
+  value       = aws_db_instance.postgres.username
+}

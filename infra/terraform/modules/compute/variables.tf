@@ -51,3 +51,43 @@ variable "assign_public_ip" {
   type        = bool
   default     = false
 }
+variable "database_host" {
+  description = "RDS PostgreSQL endpoint hostname"
+  type        = string
+}
+
+variable "database_port" {
+  description = "RDS PostgreSQL port"
+  type        = number
+  default     = 5432
+}
+
+variable "database_name" {
+  description = "PostgreSQL database name"
+  type        = string
+}
+
+variable "database_user" {
+  description = "PostgreSQL username"
+  type        = string
+}
+
+variable "database_secret_arn" {
+  description = "Secrets Manager ARN containing the RDS master credentials"
+  type        = string
+}
+
+variable "redis_host" {
+  description = "ElastiCache Redis primary endpoint"
+  type        = string
+}
+
+variable "redis_port" {
+  description = "ElastiCache Redis port"
+  type        = number
+  default     = 6379
+}
+variable "jwt_secret_arn" {
+  description = "Secrets Manager ARN containing the OpsPilot JWT signing secret"
+  type        = string
+}

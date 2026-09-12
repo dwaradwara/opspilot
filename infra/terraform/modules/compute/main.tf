@@ -70,6 +70,44 @@ resource "aws_ecs_task_definition" "api" {
         }
       ]
 
+      environment = [
+        {
+          name  = "ENVIRONMENT"
+          value = "staging"
+        },
+        {
+          name  = "DATABASE_HOST"
+          value = var.database_host
+        },
+        {
+          name  = "DATABASE_PORT"
+          value = tostring(var.database_port)
+        },
+        {
+          name  = "DATABASE_NAME"
+          value = var.database_name
+        },
+        {
+          name  = "DATABASE_USER"
+          value = var.database_user
+        },
+        {
+          name  = "REDIS_URL"
+          value = "rediss://${var.redis_host}:${var.redis_port}/0"
+        }
+      ]
+
+      secrets = [
+        {
+          name      = "DATABASE_PASSWORD"
+          valueFrom = "${var.database_secret_arn}:password::"
+        },
+        {
+          name      = "JWT_SECRET"
+          valueFrom = var.jwt_secret_arn
+        }
+      ]
+
       logConfiguration = {
         logDriver = "awslogs"
 
@@ -121,4 +159,24 @@ resource "aws_ecs_service" "api" {
   tags = {
     Name = "${var.name}-api-service"
   }
+}
+data "aws_iam_policy_document" "task_execution_secrets" {
+  statement {
+    sid = "ReadDatabaseSecret"
+
+    actions = [
+      "secretsmanager:GetSecretValue",
+    ]
+
+    resources = [
+      var.database_secret_arn,
+      var.jwt_secret_arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "task_execution_secrets" {
+  name   = "${var.name}-ecs-secret-access"
+  role   = aws_iam_role.task_execution.id
+  policy = data.aws_iam_policy_document.task_execution_secrets.json
 }
