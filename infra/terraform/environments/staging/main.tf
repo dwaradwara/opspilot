@@ -47,8 +47,9 @@ module "database" {
 module "cache" {
   source = "../../modules/cache"
 
-  name             = "opspilot-staging"
-  cache_subnet_ids = module.network.private_app_subnet_ids
+  name              = "opspilot-staging"
+  cache_subnet_ids  = module.network.private_app_subnet_ids
+  security_group_id = module.security.redis_security_group_id
 }
 module "load_balancer" {
   source = "../../modules/load_balancer"
