@@ -92,3 +92,8 @@ module "secrets" {
 
   name = "opspilot-staging"
 }
+module "registry" {
+  source = "../../modules/registry"
+
+  name = "opspilot-staging"
+}
