@@ -62,14 +62,18 @@ module "load_balancer" {
   health_check_path = "/health"
 }
 module "compute" {
-  source = "../../modules/compute"
+  depends_on = [module.load_balancer]
+  source     = "../../modules/compute"
 
   name              = "opspilot-staging"
   subnet_ids        = module.network.public_subnet_ids
   security_group_id = module.security.app_security_group_id
   container_image   = var.container_image
+  target_group_arn  = module.load_balancer.target_group_arn
 
-  container_port = 8000
-  cpu            = 256
-  memory         = 512
+  container_port   = 8000
+  cpu              = 256
+  memory           = 512
+  desired_count    = 1
+  assign_public_ip = true
 }

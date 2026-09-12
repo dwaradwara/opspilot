@@ -86,3 +86,39 @@ resource "aws_ecs_task_definition" "api" {
     Name = "${var.name}-api-task"
   }
 }
+resource "aws_ecs_service" "api" {
+  name            = "${var.name}-api-service"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.api.arn
+  desired_count   = var.desired_count
+  launch_type     = "FARGATE"
+
+  health_check_grace_period_seconds = 60
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
+  network_configuration {
+    subnets          = var.subnet_ids
+    security_groups  = [var.security_group_id]
+    assign_public_ip = var.assign_public_ip
+  }
+
+  load_balancer {
+    target_group_arn = var.target_group_arn
+    container_name   = "api"
+    container_port   = var.container_port
+  }
+
+  lifecycle {
+    ignore_changes = [
+      task_definition,
+    ]
+  }
+
+  tags = {
+    Name = "${var.name}-api-service"
+  }
+}

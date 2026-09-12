@@ -35,3 +35,19 @@ variable "memory" {
   type        = number
   default     = 512
 }
+variable "target_group_arn" {
+  description = "ALB target group ARN used by the ECS API service"
+  type        = string
+}
+
+variable "desired_count" {
+  description = "Number of API Fargate tasks"
+  type        = number
+  default     = 1
+}
+
+variable "assign_public_ip" {
+  description = "Whether Fargate tasks receive a public IP"
+  type        = bool
+  default     = false
+}
