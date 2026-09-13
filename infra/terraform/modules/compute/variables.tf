@@ -91,3 +91,19 @@ variable "jwt_secret_arn" {
   description = "Secrets Manager ARN containing the OpsPilot JWT signing secret"
   type        = string
 }
+variable "firelens_image" {
+  description = "Pinned AWS for Fluent Bit image used by the ECS FireLens log router"
+  type        = string
+  default     = "906394416424.dkr.ecr.eu-central-1.amazonaws.com/aws-for-fluent-bit:2.34.3.20260901"
+}
+
+variable "loki_host" {
+  description = "Private DNS hostname of the Loki service"
+  type        = string
+}
+
+variable "loki_port" {
+  description = "Private Loki HTTP port"
+  type        = number
+  default     = 3100
+}

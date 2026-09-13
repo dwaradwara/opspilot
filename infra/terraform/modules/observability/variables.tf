@@ -48,7 +48,7 @@ variable "cpu" {
 variable "memory" {
   description = "Fargate memory in MiB for the observability task"
   type        = number
-  default     = 1024
+  default     = 2048
 }
 
 variable "prometheus_image" {
@@ -67,4 +67,14 @@ variable "config_init_image" {
   description = "Container image used to generate runtime monitoring configuration"
   type        = string
   default     = "alpine:3.20"
+}
+variable "loki_image" {
+  description = "Loki container image"
+  type        = string
+  default     = "grafana/loki:3.5.0"
+}
+
+variable "app_security_group_id" {
+  description = "Security group ID used by the OpsPilot application service"
+  type        = string
 }

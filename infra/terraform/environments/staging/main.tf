@@ -69,6 +69,7 @@ module "compute" {
   subnet_ids        = module.network.public_subnet_ids
   security_group_id = module.security.app_security_group_id
   container_image   = var.container_image
+  loki_host         = "loki.opspilot-staging.internal"
   target_group_arn  = module.load_balancer.target_group_arn
 
   database_host       = module.database.database_address
@@ -122,6 +123,7 @@ module "observability" {
 
   alb_listener_arn      = module.load_balancer.listener_arn
   alb_security_group_id = module.security.alb_security_group_id
+  app_security_group_id = module.security.app_security_group_id
   api_alb_dns_name      = module.load_balancer.alb_dns_name
 
   assign_public_ip = true

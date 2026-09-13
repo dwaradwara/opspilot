@@ -59,6 +59,38 @@ resource "aws_ecs_task_definition" "api" {
 
   container_definitions = jsonencode([
     {
+      name              = "log-router"
+      image             = var.firelens_image
+      essential         = true
+      memoryReservation = 64
+      user              = "0"
+
+      environment    = []
+      mountPoints    = []
+      portMappings   = []
+      systemControls = []
+      volumesFrom    = []
+
+      firelensConfiguration = {
+        type = "fluentbit"
+
+        options = {
+          "enable-ecs-log-metadata" = "true"
+        }
+      }
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.api.name
+          awslogs-region        = data.aws_region.current.region
+          awslogs-stream-prefix = "firelens"
+        }
+      }
+    },
+
+    {
       name      = "api"
       image     = var.container_image
       essential = true
@@ -66,6 +98,7 @@ resource "aws_ecs_task_definition" "api" {
       portMappings = [
         {
           containerPort = var.container_port
+          hostPort      = var.container_port
           protocol      = "tcp"
         }
       ]
@@ -109,12 +142,14 @@ resource "aws_ecs_task_definition" "api" {
       ]
 
       logConfiguration = {
-        logDriver = "awslogs"
+        logDriver = "awsfirelens"
 
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.api.name
-          awslogs-region        = data.aws_region.current.region
-          awslogs-stream-prefix = "api"
+          Name        = "loki"
+          Host        = var.loki_host
+          Port        = tostring(var.loki_port)
+          Labels      = "job=opspilot-api,environment=staging"
+          Line_Format = "json"
         }
       }
     }

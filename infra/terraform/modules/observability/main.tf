@@ -120,6 +120,7 @@ resource "aws_ecs_task_definition" "observability" {
   memory = tostring(var.memory)
 
   execution_role_arn = aws_iam_role.task_execution.arn
+  task_role_arn      = aws_iam_role.observability_task.arn
 
   volume {
     name = "monitoring-config"
@@ -170,6 +171,14 @@ datasources:
     url: http://127.0.0.1:9090
     isDefault: true
     editable: false
+
+  - name: Loki
+    uid: opspilot-loki
+    type: loki
+    access: proxy
+    url: http://127.0.0.1:3100
+    isDefault: false
+    editable: false
 EOT
           ),
 
@@ -195,7 +204,14 @@ EOT
 
           base64encode(file("${path.module}/opspilot-staging-overview.json")),
 
-          "' | base64 -d > /config/dashboard-json/opspilot-staging-overview.json"
+          "' | base64 -d > /config/dashboard-json/opspilot-staging-overview.json && printf '%s' '",
+
+          base64encode(templatefile("${path.module}/loki.yml.tftpl", {
+            region      = data.aws_region.current.region
+            bucket_name = aws_s3_bucket.loki.bucket
+          })),
+
+          "' | base64 -d > /config/loki.yml"
         ])
       ]
 
@@ -258,6 +274,47 @@ EOT
           awslogs-group         = aws_cloudwatch_log_group.observability.name
           awslogs-region        = data.aws_region.current.region
           awslogs-stream-prefix = "prometheus"
+        }
+      }
+    },
+    {
+      name      = "loki"
+      image     = var.loki_image
+      essential = true
+
+      dependsOn = [
+        {
+          containerName = "config-init"
+          condition     = "SUCCESS"
+        }
+      ]
+
+      portMappings = [
+        {
+          containerPort = 3100
+          protocol      = "tcp"
+        }
+      ]
+
+      command = [
+        "-config.file=/etc/opspilot-monitoring/loki.yml"
+      ]
+
+      mountPoints = [
+        {
+          sourceVolume  = "monitoring-config"
+          containerPath = "/etc/opspilot-monitoring"
+          readOnly      = true
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.observability.name
+          awslogs-region        = data.aws_region.current.region
+          awslogs-stream-prefix = "loki"
         }
       }
     },
@@ -350,6 +407,11 @@ resource "aws_ecs_service" "observability" {
     rollback = true
   }
 
+  service_registries {
+    registry_arn = aws_service_discovery_service.loki.arn
+  }
+
+
   network_configuration {
     subnets          = var.subnet_ids
     security_groups  = [aws_security_group.observability.id]
@@ -368,5 +430,116 @@ resource "aws_ecs_service" "observability" {
 
   tags = {
     Name = "${var.name}-observability-service"
+  }
+}
+data "aws_caller_identity" "current" {}
+
+resource "aws_s3_bucket" "loki" {
+  bucket = lower("${var.name}-loki-${data.aws_caller_identity.current.account_id}")
+
+  tags = {
+    Name = "${var.name}-loki"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "loki" {
+  bucket = aws_s3_bucket.loki.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "loki" {
+  bucket = aws_s3_bucket.loki.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_versioning" "loki" {
+  bucket = aws_s3_bucket.loki.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_iam_role" "observability_task" {
+  name               = "${var.name}-observability-task-role"
+  assume_role_policy = data.aws_iam_policy_document.ecs_task_assume_role.json
+
+  tags = {
+    Name = "${var.name}-observability-task-role"
+  }
+}
+
+data "aws_iam_policy_document" "loki_s3" {
+  statement {
+    sid = "ListLokiBucket"
+
+    actions = [
+      "s3:ListBucket",
+    ]
+
+    resources = [
+      aws_s3_bucket.loki.arn,
+    ]
+  }
+
+  statement {
+    sid = "ManageLokiObjects"
+
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+
+    resources = [
+      "${aws_s3_bucket.loki.arn}/*",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "loki_s3" {
+  name   = "${var.name}-loki-s3"
+  role   = aws_iam_role.observability_task.id
+  policy = data.aws_iam_policy_document.loki_s3.json
+}
+
+resource "aws_vpc_security_group_ingress_rule" "loki_from_app" {
+  security_group_id            = aws_security_group.observability.id
+  referenced_security_group_id = var.app_security_group_id
+
+  description = "Allow OpsPilot application tasks to send logs to Loki"
+
+  from_port   = 3100
+  to_port     = 3100
+  ip_protocol = "tcp"
+}
+
+resource "aws_service_discovery_private_dns_namespace" "observability" {
+  name        = "${var.name}.internal"
+  description = "Private service discovery namespace for OpsPilot observability"
+  vpc         = var.vpc_id
+}
+
+resource "aws_service_discovery_service" "loki" {
+  name = "loki"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.observability.id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
   }
 }
