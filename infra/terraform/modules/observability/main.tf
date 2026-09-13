@@ -155,6 +155,14 @@ alerting:
         - targets:
             - "127.0.0.1:9093"
 
+remote_write:
+  - url: "${aws_prometheus_workspace.metrics.prometheus_endpoint}api/v1/remote_write"
+    sigv4:
+      region: "${data.aws_region.current.region}"
+    queue_config:
+      capacity: 2500
+      max_samples_per_send: 1000
+      max_shards: 4
 scrape_configs:
   - job_name: "opspilot-staging-api"
     metrics_path: /metrics
@@ -779,4 +787,32 @@ resource "aws_iam_role_policy" "alertmanager_sns" {
   name   = "${var.name}-alertmanager-sns"
   role   = aws_iam_role.observability_task.id
   policy = data.aws_iam_policy_document.alertmanager_sns.json
+}
+
+resource "aws_prometheus_workspace" "metrics" {
+  alias = "${var.name}-metrics"
+
+  tags = {
+    Name = "${var.name}-metrics"
+  }
+}
+
+data "aws_iam_policy_document" "prometheus_remote_write" {
+  statement {
+    sid = "RemoteWriteMetrics"
+
+    actions = [
+      "aps:RemoteWrite",
+    ]
+
+    resources = [
+      aws_prometheus_workspace.metrics.arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "prometheus_remote_write" {
+  name   = "${var.name}-prometheus-remote-write"
+  role   = aws_iam_role.observability_task.id
+  policy = data.aws_iam_policy_document.prometheus_remote_write.json
 }
