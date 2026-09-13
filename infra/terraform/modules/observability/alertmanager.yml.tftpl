@@ -1,4 +1,4 @@
-﻿global:
+global:
   resolve_timeout: 5m
 
 route:
@@ -12,3 +12,21 @@ route:
 
 receivers:
   - name: "default"
+    sns_configs:
+      - send_resolved: true
+        topic_arn: "${sns_topic_arn}"
+        sigv4:
+          region: "${region}"
+        subject: "[OpsPilot] {{ .Status | toUpper }} - {{ .CommonLabels.alertname }}"
+        message: |
+          OpsPilot Alert
+
+          Status: {{ .Status }}
+          Alert: {{ .CommonLabels.alertname }}
+          Environment: {{ .CommonLabels.environment }}
+          Severity: {{ .CommonLabels.severity }}
+
+          {{ range .Alerts }}
+          Summary: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          {{ end }}

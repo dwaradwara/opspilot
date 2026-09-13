@@ -241,7 +241,10 @@ EOT
 
           "' | base64 -d > /config/prometheus-rules.yml && printf '%s' '",
 
-          base64encode(file("${path.module}/alertmanager.yml.tftpl")),
+          base64encode(templatefile("${path.module}/alertmanager.yml.tftpl", {
+            region        = data.aws_region.current.region
+            sns_topic_arn = aws_sns_topic.alerts.arn
+          })),
 
           "' | base64 -d > /config/alertmanager.yml"
         ])
@@ -748,4 +751,32 @@ resource "aws_vpc_security_group_ingress_rule" "tempo_otlp_http_from_app" {
   from_port   = 4318
   to_port     = 4318
   ip_protocol = "tcp"
+}
+
+resource "aws_sns_topic" "alerts" {
+  name = "${var.name}-alerts"
+
+  tags = {
+    Name = "${var.name}-alerts"
+  }
+}
+
+data "aws_iam_policy_document" "alertmanager_sns" {
+  statement {
+    sid = "PublishOpsPilotAlerts"
+
+    actions = [
+      "sns:Publish",
+    ]
+
+    resources = [
+      aws_sns_topic.alerts.arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "alertmanager_sns" {
+  name   = "${var.name}-alertmanager-sns"
+  role   = aws_iam_role.observability_task.id
+  policy = data.aws_iam_policy_document.alertmanager_sns.json
 }
