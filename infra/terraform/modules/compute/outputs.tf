@@ -21,3 +21,7 @@ output "api_task_definition_arn" {
   description = "ARN of the OpsPilot API ECS task definition"
   value       = aws_ecs_task_definition.api.arn
 }
+output "api_service_arn" {
+  description = "ARN of the OpsPilot API ECS service"
+  value       = aws_ecs_service.api.id
+}

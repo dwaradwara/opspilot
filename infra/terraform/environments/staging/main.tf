@@ -106,5 +106,8 @@ module "github_oidc" {
   github_owner_id      = "47715239"
   github_repository_id = "1361514291"
 
-  ecr_repository_arn = module.registry.repository_arn
+  ecr_repository_arn          = module.registry.repository_arn
+  ecs_service_arn             = module.compute.api_service_arn
+  ecs_task_execution_role_arn = module.compute.task_execution_role_arn
+  ecs_task_role_arn           = module.compute.task_role_arn
 }

@@ -122,3 +122,56 @@ resource "aws_iam_role_policy" "ecr_publish" {
   role   = aws_iam_role.github_actions.id
   policy = data.aws_iam_policy_document.ecr_publish.json
 }
+data "aws_iam_policy_document" "ecs_deploy" {
+  statement {
+    sid = "ReadAndRegisterTaskDefinition"
+
+    actions = [
+      "ecs:DescribeTaskDefinition",
+      "ecs:RegisterTaskDefinition",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "DeployToStagingService"
+
+    actions = [
+      "ecs:DescribeServices",
+      "ecs:UpdateService",
+    ]
+
+    resources = [
+      var.ecs_service_arn,
+    ]
+  }
+
+  statement {
+    sid = "PassECSTaskRoles"
+
+    actions = [
+      "iam:PassRole",
+    ]
+
+    resources = [
+      var.ecs_task_execution_role_arn,
+      var.ecs_task_role_arn,
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+
+      values = [
+        "ecs-tasks.amazonaws.com",
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "ecs_deploy" {
+  name   = "${var.name}-ecs-deploy"
+  role   = aws_iam_role.github_actions.id
+  policy = data.aws_iam_policy_document.ecs_deploy.json
+}
