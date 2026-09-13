@@ -148,6 +148,16 @@ data "aws_iam_policy_document" "ecs_deploy" {
   }
 
   statement {
+    sid = "ReadStagingLoadBalancer"
+
+    actions = [
+      "elasticloadbalancing:DescribeLoadBalancers",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
     sid = "PassECSTaskRoles"
 
     actions = [

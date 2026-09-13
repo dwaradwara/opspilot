@@ -185,6 +185,46 @@ jobs:
             exit 1
           fi
 
+            - name: Run external staging health smoke test
+        run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names opspilot-staging-alb \
+            --region "$AWS_REGION" \
+            --query "LoadBalancers[0].DNSName" \
+            --output text)
+
+          HEALTH_URL="http://${ALB_DNS}/health"
+
+          echo "Testing $HEALTH_URL"
+
+          for attempt in {1..6}; do
+            RESPONSE=$(curl \
+              --fail \
+              --silent \
+              --show-error \
+              --connect-timeout 5 \
+              --max-time 10 \
+              "$HEALTH_URL") && {
+                echo "Response: $RESPONSE"
+
+                echo "$RESPONSE" | jq -e '
+                  .status == "healthy"
+                  and .service == "opspilot-api"
+                ' >/dev/null && {
+                  echo "External staging health check passed."
+                  exit 0
+                }
+              }
+
+            echo "Health check attempt $attempt failed."
+
+            if [ "$attempt" -lt 6 ]; then
+              sleep 10
+            fi
+          done
+
+          echo "External staging health check failed."
+          exit 1
       - name: Record immutable image
         run: |
           echo "### OpsPilot staging image" >> "$GITHUB_STEP_SUMMARY"
