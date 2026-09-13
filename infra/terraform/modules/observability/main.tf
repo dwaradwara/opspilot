@@ -179,6 +179,14 @@ datasources:
     url: http://127.0.0.1:3100
     isDefault: false
     editable: false
+
+  - name: Tempo
+    uid: opspilot-tempo
+    type: tempo
+    access: proxy
+    url: http://127.0.0.1:3200
+    isDefault: false
+    editable: false
 EOT
           ),
 
@@ -211,7 +219,14 @@ EOT
             bucket_name = aws_s3_bucket.loki.bucket
           })),
 
-          "' | base64 -d > /config/loki.yml"
+          "' | base64 -d > /config/loki.yml && printf '%s' '",
+
+          base64encode(templatefile("${path.module}/tempo.yml.tftpl", {
+            region      = data.aws_region.current.region
+            bucket_name = aws_s3_bucket.tempo.bucket
+          })),
+
+          "' | base64 -d > /config/tempo.yml"
         ])
       ]
 
@@ -315,6 +330,56 @@ EOT
           awslogs-group         = aws_cloudwatch_log_group.observability.name
           awslogs-region        = data.aws_region.current.region
           awslogs-stream-prefix = "loki"
+        }
+      }
+    },
+    {
+      name              = "tempo"
+      image             = var.tempo_image
+      essential         = true
+      memoryReservation = 256
+
+      dependsOn = [
+        {
+          containerName = "config-init"
+          condition     = "SUCCESS"
+        }
+      ]
+
+      portMappings = [
+        {
+          containerPort = 3200
+          protocol      = "tcp"
+        },
+        {
+          containerPort = 4317
+          protocol      = "tcp"
+        },
+        {
+          containerPort = 4318
+          protocol      = "tcp"
+        }
+      ]
+
+      command = [
+        "-config.file=/etc/opspilot-monitoring/tempo.yml"
+      ]
+
+      mountPoints = [
+        {
+          sourceVolume  = "monitoring-config"
+          containerPath = "/etc/opspilot-monitoring"
+          readOnly      = true
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.observability.name
+          awslogs-region        = data.aws_region.current.region
+          awslogs-stream-prefix = "tempo"
         }
       }
     },
@@ -542,4 +607,85 @@ resource "aws_service_discovery_service" "loki" {
 
     routing_policy = "MULTIVALUE"
   }
+}
+
+resource "aws_s3_bucket" "tempo" {
+  bucket = lower("${var.name}-tempo-${data.aws_caller_identity.current.account_id}")
+
+  tags = {
+    Name = "${var.name}-tempo"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "tempo" {
+  bucket = aws_s3_bucket.tempo.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "tempo" {
+  bucket = aws_s3_bucket.tempo.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_versioning" "tempo" {
+  bucket = aws_s3_bucket.tempo.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+data "aws_iam_policy_document" "tempo_s3" {
+  statement {
+    sid = "ReadTempoBucket"
+
+    actions = [
+      "s3:ListBucket",
+      "s3:GetBucketLocation",
+    ]
+
+    resources = [
+      aws_s3_bucket.tempo.arn,
+    ]
+  }
+
+  statement {
+    sid = "ManageTempoObjects"
+
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+
+    resources = [
+      "${aws_s3_bucket.tempo.arn}/*",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "tempo_s3" {
+  name   = "${var.name}-tempo-s3"
+  role   = aws_iam_role.observability_task.id
+  policy = data.aws_iam_policy_document.tempo_s3.json
+}
+
+resource "aws_vpc_security_group_ingress_rule" "tempo_otlp_http_from_app" {
+  security_group_id            = aws_security_group.observability.id
+  referenced_security_group_id = var.app_security_group_id
+
+  description = "Allow OpsPilot application tasks to export OTLP traces to Tempo"
+
+  from_port   = 4318
+  to_port     = 4318
+  ip_protocol = "tcp"
 }

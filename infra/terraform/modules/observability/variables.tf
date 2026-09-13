@@ -78,3 +78,9 @@ variable "app_security_group_id" {
   description = "Security group ID used by the OpsPilot application service"
   type        = string
 }
+
+variable "tempo_image" {
+  description = "Tempo container image"
+  type        = string
+  default     = "grafana/tempo:2.10.7"
+}

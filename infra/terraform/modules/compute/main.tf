@@ -109,6 +109,18 @@ resource "aws_ecs_task_definition" "api" {
           value = "staging"
         },
         {
+          name  = "OTEL_SERVICE_NAME"
+          value = "opspilot-api"
+        },
+        {
+          name  = "OTEL_ENVIRONMENT"
+          value = "staging"
+        },
+        {
+          name  = "OTEL_EXPORTER_OTLP_ENDPOINT"
+          value = "http://loki.opspilot-staging.internal:4318/v1/traces"
+        },
+        {
           name  = "DATABASE_HOST"
           value = var.database_host
         },
