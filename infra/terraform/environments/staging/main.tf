@@ -111,3 +111,18 @@ module "github_oidc" {
   ecs_task_execution_role_arn = module.compute.task_execution_role_arn
   ecs_task_role_arn           = module.compute.task_role_arn
 }
+module "observability" {
+  source = "../../modules/observability"
+
+  name = "opspilot-staging"
+
+  vpc_id     = module.network.vpc_id
+  cluster_id = module.compute.cluster_id
+  subnet_ids = module.network.public_subnet_ids
+
+  alb_listener_arn      = module.load_balancer.listener_arn
+  alb_security_group_id = module.security.alb_security_group_id
+  api_alb_dns_name      = module.load_balancer.alb_dns_name
+
+  assign_public_ip = true
+}
