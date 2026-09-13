@@ -185,7 +185,7 @@ jobs:
             exit 1
           fi
 
-            - name: Run external staging health smoke test
+      - name: Run external staging health smoke test
         run: |
           ALB_DNS=$(aws elbv2 describe-load-balancers \
             --names opspilot-staging-alb \
