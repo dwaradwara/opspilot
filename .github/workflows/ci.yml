@@ -11,6 +11,9 @@ on:
 env:
   AWS_REGION: eu-central-1
   ECR_REPOSITORY: opspilot-staging
+  ECS_CLUSTER: opspilot-staging-cluster
+  ECS_SERVICE: opspilot-staging-api-service
+  ECS_CONTAINER: api
 
 jobs:
   test:
@@ -42,7 +45,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     permissions:
       contents: read
@@ -95,6 +98,92 @@ jobs:
             --repository-name "$ECR_REPOSITORY" \
             --image-ids imageTag="${GITHUB_SHA}" \
             --region "$AWS_REGION"
+
+      - name: Read current ECS task definition
+        run: |
+          CURRENT_TASK_DEF=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --region "$AWS_REGION" \
+            --query "services[0].taskDefinition" \
+            --output text)
+
+          aws ecs describe-task-definition \
+            --task-definition "$CURRENT_TASK_DEF" \
+            --region "$AWS_REGION" \
+            --query "taskDefinition" \
+            > task-definition.json
+
+      - name: Create task definition with new image
+        env:
+          IMAGE_URI: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+        run: |
+          jq \
+            --arg IMAGE_URI "$IMAGE_URI" \
+            --arg CONTAINER_NAME "$ECS_CONTAINER" \
+            '
+            .containerDefinitions |= map(
+              if .name == $CONTAINER_NAME
+              then .image = $IMAGE_URI
+              else .
+              end
+            )
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )
+            ' task-definition.json > task-definition-new.json
+
+      - name: Register new ECS task definition
+        id: register-task
+        run: |
+          NEW_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://task-definition-new.json \
+            --region "$AWS_REGION" \
+            --query "taskDefinition.taskDefinitionArn" \
+            --output text)
+
+          echo "task_definition=$NEW_TASK_DEF" >> "$GITHUB_OUTPUT"
+          echo "Registered $NEW_TASK_DEF"
+
+      - name: Deploy task definition to staging
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --task-definition "${{ steps.register-task.outputs.task_definition }}" \
+            --region "$AWS_REGION"
+
+      - name: Wait for staging service to stabilize
+        run: |
+          aws ecs wait services-stable \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --region "$AWS_REGION"
+
+      - name: Verify deployed task definition
+        run: |
+          DEPLOYED_TASK_DEF=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_SERVICE" \
+            --region "$AWS_REGION" \
+            --query "services[0].taskDefinition" \
+            --output text)
+
+          EXPECTED_TASK_DEF="${{ steps.register-task.outputs.task_definition }}"
+
+          echo "Expected: $EXPECTED_TASK_DEF"
+          echo "Deployed: $DEPLOYED_TASK_DEF"
+
+          if [ "$DEPLOYED_TASK_DEF" != "$EXPECTED_TASK_DEF" ]; then
+            echo "Deployment did not remain on the new task definition."
+            exit 1
+          fi
 
       - name: Record immutable image
         run: |
