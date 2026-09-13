@@ -84,3 +84,9 @@ variable "tempo_image" {
   type        = string
   default     = "grafana/tempo:2.10.7"
 }
+
+variable "alertmanager_image" {
+  description = "Alertmanager container image"
+  type        = string
+  default     = "prom/alertmanager:v0.28.1"
+}

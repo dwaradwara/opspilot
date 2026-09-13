@@ -1,0 +1,46 @@
+﻿groups:
+  - name: opspilot-staging
+    rules:
+      - alert: OpsPilotApiDown
+        expr: up{job="opspilot-staging-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          environment: staging
+        annotations:
+          summary: "OpsPilot staging API is down"
+          description: "Prometheus cannot scrape the OpsPilot staging API for more than 1 minute."
+
+      - alert: OpsPilotHigh5xxRate
+        expr: |
+          100 * (
+            (sum(rate(opspilot_http_requests_total{job="opspilot-staging-api",route!="/metrics",status_code=~"5.."}[5m])) or vector(0))
+            /
+            clamp_min(
+              sum(rate(opspilot_http_requests_total{job="opspilot-staging-api",route!="/metrics"}[5m])),
+              0.000001
+            )
+          ) > 5
+        for: 5m
+        labels:
+          severity: critical
+          environment: staging
+        annotations:
+          summary: "OpsPilot staging 5xx error rate is high"
+          description: "The staging API 5xx error rate has exceeded 5% for 5 minutes."
+
+      - alert: OpsPilotHighP95Latency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(opspilot_http_request_duration_seconds_bucket{job="opspilot-staging-api",route!="/metrics"}[5m])
+            )
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          environment: staging
+        annotations:
+          summary: "OpsPilot staging P95 latency is high"
+          description: "The staging API P95 request latency has exceeded 1 second for 5 minutes."

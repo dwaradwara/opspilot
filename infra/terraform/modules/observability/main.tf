@@ -146,6 +146,15 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+rule_files:
+  - /etc/opspilot-monitoring/prometheus-rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "127.0.0.1:9093"
+
 scrape_configs:
   - job_name: "opspilot-staging-api"
     metrics_path: /metrics
@@ -226,7 +235,15 @@ EOT
             bucket_name = aws_s3_bucket.tempo.bucket
           })),
 
-          "' | base64 -d > /config/tempo.yml"
+          "' | base64 -d > /config/tempo.yml && printf '%s' '",
+
+          base64encode(file("${path.module}/prometheus-rules.yml")),
+
+          "' | base64 -d > /config/prometheus-rules.yml && printf '%s' '",
+
+          base64encode(file("${path.module}/alertmanager.yml.tftpl")),
+
+          "' | base64 -d > /config/alertmanager.yml"
         ])
       ]
 
@@ -289,6 +306,49 @@ EOT
           awslogs-group         = aws_cloudwatch_log_group.observability.name
           awslogs-region        = data.aws_region.current.region
           awslogs-stream-prefix = "prometheus"
+        }
+      }
+    },
+    {
+      name              = "alertmanager"
+      image             = var.alertmanager_image
+      essential         = true
+      memoryReservation = 128
+
+      dependsOn = [
+        {
+          containerName = "config-init"
+          condition     = "SUCCESS"
+        }
+      ]
+
+      portMappings = [
+        {
+          containerPort = 9093
+          protocol      = "tcp"
+        }
+      ]
+
+      command = [
+        "--config.file=/etc/opspilot-monitoring/alertmanager.yml",
+        "--storage.path=/alertmanager",
+      ]
+
+      mountPoints = [
+        {
+          sourceVolume  = "monitoring-config"
+          containerPath = "/etc/opspilot-monitoring"
+          readOnly      = true
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.observability.name
+          awslogs-region        = data.aws_region.current.region
+          awslogs-stream-prefix = "alertmanager"
         }
       }
     },
