@@ -1,0 +1,412 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": false,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-amazonprometheus-datasource",
+        "uid": "opspilot-amp"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "1 - (((sum(increase(opspilot_http_requests_total{job=\"opspilot-staging-api\",route!=\"/metrics\",status_code=~\"5..\"}[30d])) or vector(0)) / clamp_min(sum(increase(opspilot_http_requests_total{job=\"opspilot-staging-api\",route!=\"/metrics\"}[30d])), 1)))",
+          "instant": true,
+          "legendFormat": "Availability",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "30-Day Availability SLI — Target 99.9%",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-amazonprometheus-datasource",
+        "uid": "opspilot-amp"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.99
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(increase(opspilot_http_request_duration_seconds_bucket{job=\"opspilot-staging-api\",route!=\"/metrics\",le=\"0.25\"}[30d])) / clamp_min(sum(increase(opspilot_http_request_duration_seconds_count{job=\"opspilot-staging-api\",route!=\"/metrics\"}[30d])), 1)",
+          "instant": true,
+          "legendFormat": "<250ms",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "30-Day Latency SLI — 99% Under 250ms",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-amazonprometheus-datasource",
+        "uid": "opspilot-amp"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.25
+              },
+              {
+                "color": "green",
+                "value": 0.5
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "clamp_min(1 - ((((sum(increase(opspilot_http_requests_total{job=\"opspilot-staging-api\",route!=\"/metrics\",status_code=~\"5..\"}[30d])) or vector(0)) / clamp_min(sum(increase(opspilot_http_requests_total{job=\"opspilot-staging-api\",route!=\"/metrics\"}[30d])), 1))) / 0.001), 0)",
+          "instant": true,
+          "legendFormat": "Remaining",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Availability Error Budget Remaining",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-amazonprometheus-datasource",
+        "uid": "opspilot-amp"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.25
+              },
+              {
+                "color": "green",
+                "value": 0.5
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "clamp_min(1 - (((1 - (sum(increase(opspilot_http_request_duration_seconds_bucket{job=\"opspilot-staging-api\",route!=\"/metrics\",le=\"0.25\"}[30d])) / clamp_min(sum(increase(opspilot_http_request_duration_seconds_count{job=\"opspilot-staging-api\",route!=\"/metrics\"}[30d])), 1))) / 0.01)), 0)",
+          "instant": true,
+          "legendFormat": "Remaining",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Latency Error Budget Remaining",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-amazonprometheus-datasource",
+        "uid": "opspilot-amp"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "(((sum(increase(opspilot_http_requests_total{job=\"opspilot-staging-api\",route!=\"/metrics\",status_code=~\"5..\"}[30d])) or vector(0)) / clamp_min(sum(increase(opspilot_http_requests_total{job=\"opspilot-staging-api\",route!=\"/metrics\"}[30d])), 1))) / 0.001",
+          "instant": true,
+          "legendFormat": "Consumed",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Availability Error Budget Consumed",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-amazonprometheus-datasource",
+        "uid": "opspilot-amp"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "(1 - (sum(increase(opspilot_http_request_duration_seconds_bucket{job=\"opspilot-staging-api\",route!=\"/metrics\",le=\"0.25\"}[30d])) / clamp_min(sum(increase(opspilot_http_request_duration_seconds_count{job=\"opspilot-staging-api\",route!=\"/metrics\"}[30d])), 1))) / 0.01",
+          "instant": true,
+          "legendFormat": "Consumed",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Latency Error Budget Consumed",
+      "type": "stat"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 41,
+  "tags": [
+    "opspilot",
+    "staging",
+    "slo",
+    "amp"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "OpsPilot Staging SLOs",
+  "uid": "opspilot-staging-slo",
+  "version": 1
+}

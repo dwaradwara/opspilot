@@ -189,6 +189,22 @@ datasources:
     isDefault: true
     editable: false
 
+  - name: AMP
+    uid: opspilot-amp
+    type: grafana-amazonprometheus-datasource
+    access: proxy
+    url: "${trimsuffix(aws_prometheus_workspace.metrics.prometheus_endpoint, "/")}"
+    isDefault: false
+    editable: false
+    jsonData:
+      httpMethod: POST
+      sigV4Auth: true
+      sigV4AuthType: default
+      sigV4Region: "${data.aws_region.current.region}"
+      sigv4Service: aps
+      defaultEditor: code
+      manageAlerts: false
+      queryStatsEnabled: false
   - name: Loki
     uid: opspilot-loki
     type: loki
@@ -230,6 +246,10 @@ EOT
           base64encode(file("${path.module}/opspilot-staging-overview.json")),
 
           "' | base64 -d > /config/dashboard-json/opspilot-staging-overview.json && printf '%s' '",
+
+          base64encode(file("${path.module}/opspilot-staging-slo.json")),
+
+          "' | base64 -d > /config/dashboard-json/opspilot-staging-slo.json && printf '%s' '",
 
           base64encode(templatefile("${path.module}/loki.yml.tftpl", {
             region      = data.aws_region.current.region
@@ -494,6 +514,14 @@ EOT
         {
           name  = "GF_AUTH_ANONYMOUS_ORG_ROLE"
           value = "Viewer"
+        },
+        {
+          name  = "GF_AUTH_SIGV4_AUTH_ENABLED"
+          value = "true"
+        },
+        {
+          name  = "GF_PLUGINS_PREINSTALL_SYNC"
+          value = "grafana-amazonprometheus-datasource@3.2.0"
         },
         {
           name  = "GF_USERS_ALLOW_SIGN_UP"
@@ -815,4 +843,27 @@ resource "aws_iam_role_policy" "prometheus_remote_write" {
   name   = "${var.name}-prometheus-remote-write"
   role   = aws_iam_role.observability_task.id
   policy = data.aws_iam_policy_document.prometheus_remote_write.json
+}
+
+data "aws_iam_policy_document" "grafana_amp_query" {
+  statement {
+    sid = "QueryAmpMetrics"
+
+    actions = [
+      "aps:QueryMetrics",
+      "aps:GetSeries",
+      "aps:GetLabels",
+      "aps:GetMetricMetadata",
+    ]
+
+    resources = [
+      aws_prometheus_workspace.metrics.arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "grafana_amp_query" {
+  name   = "${var.name}-grafana-amp-query"
+  role   = aws_iam_role.observability_task.id
+  policy = data.aws_iam_policy_document.grafana_amp_query.json
 }
