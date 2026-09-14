@@ -72,3 +72,49 @@ tests:
             exp_annotations:
               summary: "OpsPilot latency error budget burn is elevated"
               description: "The 99% under 250ms latency SLO is burning faster than 6x across both the 6-hour and 30-minute windows."
+  - name: blackbox-probe-failure
+    interval: 1m
+
+    input_series:
+      - series: 'probe_success{job="opspilot-staging-blackbox",environment="staging",service="opspilot-api",instance="http://staging.example/health"}'
+        values: '0+0x10'
+
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: OpsPilotBlackboxProbeFailed
+        exp_alerts:
+          - exp_labels:
+              job: opspilot-staging-blackbox
+              environment: staging
+              service: opspilot-api
+              instance: http://staging.example/health
+              severity: critical
+              monitoring: synthetic
+            exp_annotations:
+              summary: "OpsPilot staging synthetic probe is failing"
+              description: "The external Blackbox probe to the OpsPilot staging API health endpoint has failed for more than 1 minute."
+
+  - name: blackbox-high-latency
+    interval: 1m
+
+    input_series:
+      - series: 'probe_success{job="opspilot-staging-blackbox",environment="staging",service="opspilot-api",instance="http://staging.example/health"}'
+        values: '1+0x10'
+
+      - series: 'probe_duration_seconds{job="opspilot-staging-blackbox",environment="staging",service="opspilot-api",instance="http://staging.example/health"}'
+        values: '1.5+0x10'
+
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: OpsPilotBlackboxHighLatency
+        exp_alerts:
+          - exp_labels:
+              job: opspilot-staging-blackbox
+              environment: staging
+              service: opspilot-api
+              instance: http://staging.example/health
+              severity: warning
+              monitoring: synthetic
+            exp_annotations:
+              summary: "OpsPilot staging synthetic probe latency is high"
+              description: "The external Blackbox probe to the OpsPilot staging API has exceeded 1 second for more than 5 minutes."

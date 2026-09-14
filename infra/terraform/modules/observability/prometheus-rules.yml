@@ -192,3 +192,42 @@ groups:
         annotations:
           summary: "OpsPilot latency error budget burn is elevated"
           description: "The 99% under 250ms latency SLO is burning faster than 6x across both the 6-hour and 30-minute windows."
+
+      - alert: OpsPilotBlackboxProbeFailed
+        expr: |
+          probe_success{
+            job="opspilot-staging-blackbox",
+            service="opspilot-api"
+          } == 0
+        for: 1m
+        labels:
+          severity: critical
+          environment: staging
+          monitoring: synthetic
+        annotations:
+          summary: "OpsPilot staging synthetic probe is failing"
+          description: "The external Blackbox probe to the OpsPilot staging API health endpoint has failed for more than 1 minute."
+
+      - alert: OpsPilotBlackboxHighLatency
+        expr: |
+          (
+            probe_success{
+              job="opspilot-staging-blackbox",
+              service="opspilot-api"
+            } == 1
+          )
+          and on(instance, job, environment, service)
+          (
+            probe_duration_seconds{
+              job="opspilot-staging-blackbox",
+              service="opspilot-api"
+            } > 1
+          )
+        for: 5m
+        labels:
+          severity: warning
+          environment: staging
+          monitoring: synthetic
+        annotations:
+          summary: "OpsPilot staging synthetic probe latency is high"
+          description: "The external Blackbox probe to the OpsPilot staging API has exceeded 1 second for more than 5 minutes."

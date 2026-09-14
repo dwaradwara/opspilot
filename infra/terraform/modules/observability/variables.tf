@@ -90,3 +90,9 @@ variable "alertmanager_image" {
   type        = string
   default     = "prom/alertmanager:v0.28.1"
 }
+
+variable "blackbox_exporter_image" {
+  description = "Prometheus Blackbox Exporter container image"
+  type        = string
+  default     = "prom/blackbox-exporter:v0.28.0"
+}

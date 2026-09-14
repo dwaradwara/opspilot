@@ -172,6 +172,31 @@ scrape_configs:
           - "${var.api_alb_dns_name}:80"
         labels:
           environment: "staging"
+
+  - job_name: "opspilot-staging-blackbox"
+    metrics_path: /probe
+    params:
+      module:
+        - http_health
+
+    static_configs:
+      - targets:
+          - "http://${var.api_alb_dns_name}/health"
+        labels:
+          environment: "staging"
+          service: "opspilot-api"
+
+    relabel_configs:
+      - source_labels:
+          - __address__
+        target_label: __param_target
+
+      - source_labels:
+          - __param_target
+        target_label: instance
+
+      - target_label: __address__
+        replacement: "127.0.0.1:9115"
 EOT
           ),
 
@@ -264,6 +289,9 @@ EOT
           })),
 
           "' | base64 -d > /config/tempo.yml && printf '%s' '",
+          base64encode(file("${path.module}/blackbox.yml")),
+
+          "' | base64 -d > /config/blackbox.yml && printf '%s' '",
 
           base64encode(file("${path.module}/prometheus-rules.yml")),
 
@@ -471,6 +499,49 @@ EOT
           awslogs-group         = aws_cloudwatch_log_group.observability.name
           awslogs-region        = data.aws_region.current.region
           awslogs-stream-prefix = "tempo"
+        }
+      }
+    },
+
+    {
+      name              = "blackbox-exporter"
+      image             = var.blackbox_exporter_image
+      essential         = true
+      memoryReservation = 64
+
+      dependsOn = [
+        {
+          containerName = "config-init"
+          condition     = "SUCCESS"
+        }
+      ]
+
+      portMappings = [
+        {
+          containerPort = 9115
+          protocol      = "tcp"
+        }
+      ]
+
+      command = [
+        "--config.file=/etc/opspilot-monitoring/blackbox.yml"
+      ]
+
+      mountPoints = [
+        {
+          sourceVolume  = "monitoring-config"
+          containerPath = "/etc/opspilot-monitoring"
+          readOnly      = true
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.observability.name
+          awslogs-region        = data.aws_region.current.region
+          awslogs-stream-prefix = "blackbox-exporter"
         }
       }
     },
