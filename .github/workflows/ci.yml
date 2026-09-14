@@ -29,6 +29,20 @@ jobs:
           docker --version
           docker compose version
 
+      - name: Validate Prometheus alert rules
+        run: |
+          docker run --rm \
+            --entrypoint /bin/promtool \
+            -v "$GITHUB_WORKSPACE/infra/terraform/modules/observability:/etc/prometheus:ro" \
+            prom/prometheus:v3.5.0 \
+            check rules /etc/prometheus/prometheus-rules.yml
+
+          docker run --rm \
+            --entrypoint /bin/promtool \
+            -v "$GITHUB_WORKSPACE/infra/terraform/modules/observability:/etc/prometheus:ro" \
+            prom/prometheus:v3.5.0 \
+            test rules /etc/prometheus/prometheus-rules.test.yml
+
       - name: Run isolated test suite
         run: |
           docker compose -f docker-compose.test.yml up \

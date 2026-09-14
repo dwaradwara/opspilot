@@ -1,4 +1,4 @@
-﻿groups:
+groups:
   - name: opspilot-staging
     rules:
       - alert: OpsPilotApiDown
@@ -44,3 +44,151 @@
         annotations:
           summary: "OpsPilot staging P95 latency is high"
           description: "The staging API P95 request latency has exceeded 1 second for 5 minutes."
+
+      - alert: OpsPilotAvailabilityBurnRateCritical
+        expr: |
+          (
+            (
+              (sum(rate(opspilot_http_requests_total{job="opspilot-staging-api",route!="/metrics",status_code=~"5.."}[1h])) or vector(0))
+              /
+              clamp_min(
+                sum(rate(opspilot_http_requests_total{job="opspilot-staging-api",route!="/metrics"}[1h])),
+                0.000001
+              )
+            ) / 0.001 > 14.4
+          )
+          and
+          (
+            (
+              (sum(rate(opspilot_http_requests_total{job="opspilot-staging-api",route!="/metrics",status_code=~"5.."}[5m])) or vector(0))
+              /
+              clamp_min(
+                sum(rate(opspilot_http_requests_total{job="opspilot-staging-api",route!="/metrics"}[5m])),
+                0.000001
+              )
+            ) / 0.001 > 14.4
+          )
+        for: 2m
+        labels:
+          severity: critical
+          environment: staging
+          slo: availability
+        annotations:
+          summary: "OpsPilot availability error budget is burning rapidly"
+          description: "The 99.9% availability SLO is burning faster than 14.4x across both the 1-hour and 5-minute windows."
+
+      - alert: OpsPilotAvailabilityBurnRateWarning
+        expr: |
+          (
+            (
+              (sum(rate(opspilot_http_requests_total{job="opspilot-staging-api",route!="/metrics",status_code=~"5.."}[6h])) or vector(0))
+              /
+              clamp_min(
+                sum(rate(opspilot_http_requests_total{job="opspilot-staging-api",route!="/metrics"}[6h])),
+                0.000001
+              )
+            ) / 0.001 > 6
+          )
+          and
+          (
+            (
+              (sum(rate(opspilot_http_requests_total{job="opspilot-staging-api",route!="/metrics",status_code=~"5.."}[30m])) or vector(0))
+              /
+              clamp_min(
+                sum(rate(opspilot_http_requests_total{job="opspilot-staging-api",route!="/metrics"}[30m])),
+                0.000001
+              )
+            ) / 0.001 > 6
+          )
+        for: 5m
+        labels:
+          severity: warning
+          environment: staging
+          slo: availability
+        annotations:
+          summary: "OpsPilot availability error budget burn is elevated"
+          description: "The 99.9% availability SLO is burning faster than 6x across both the 6-hour and 30-minute windows."
+
+      - alert: OpsPilotLatencyBurnRateCritical
+        expr: |
+          (
+            (
+              clamp_min(
+                sum(rate(opspilot_http_request_duration_seconds_count{job="opspilot-staging-api",route!="/metrics"}[1h]))
+                -
+                sum(rate(opspilot_http_request_duration_seconds_bucket{job="opspilot-staging-api",route!="/metrics",le="0.25"}[1h])),
+                0
+              )
+              /
+              clamp_min(
+                sum(rate(opspilot_http_request_duration_seconds_count{job="opspilot-staging-api",route!="/metrics"}[1h])),
+                0.000001
+              )
+            ) / 0.01 > 14.4
+          )
+          and
+          (
+            (
+              clamp_min(
+                sum(rate(opspilot_http_request_duration_seconds_count{job="opspilot-staging-api",route!="/metrics"}[5m]))
+                -
+                sum(rate(opspilot_http_request_duration_seconds_bucket{job="opspilot-staging-api",route!="/metrics",le="0.25"}[5m])),
+                0
+              )
+              /
+              clamp_min(
+                sum(rate(opspilot_http_request_duration_seconds_count{job="opspilot-staging-api",route!="/metrics"}[5m])),
+                0.000001
+              )
+            ) / 0.01 > 14.4
+          )
+        for: 2m
+        labels:
+          severity: critical
+          environment: staging
+          slo: latency
+        annotations:
+          summary: "OpsPilot latency error budget is burning rapidly"
+          description: "The 99% under 250ms latency SLO is burning faster than 14.4x across both the 1-hour and 5-minute windows."
+
+      - alert: OpsPilotLatencyBurnRateWarning
+        expr: |
+          (
+            (
+              clamp_min(
+                sum(rate(opspilot_http_request_duration_seconds_count{job="opspilot-staging-api",route!="/metrics"}[6h]))
+                -
+                sum(rate(opspilot_http_request_duration_seconds_bucket{job="opspilot-staging-api",route!="/metrics",le="0.25"}[6h])),
+                0
+              )
+              /
+              clamp_min(
+                sum(rate(opspilot_http_request_duration_seconds_count{job="opspilot-staging-api",route!="/metrics"}[6h])),
+                0.000001
+              )
+            ) / 0.01 > 6
+          )
+          and
+          (
+            (
+              clamp_min(
+                sum(rate(opspilot_http_request_duration_seconds_count{job="opspilot-staging-api",route!="/metrics"}[30m]))
+                -
+                sum(rate(opspilot_http_request_duration_seconds_bucket{job="opspilot-staging-api",route!="/metrics",le="0.25"}[30m])),
+                0
+              )
+              /
+              clamp_min(
+                sum(rate(opspilot_http_request_duration_seconds_count{job="opspilot-staging-api",route!="/metrics"}[30m])),
+                0.000001
+              )
+            ) / 0.01 > 6
+          )
+        for: 5m
+        labels:
+          severity: warning
+          environment: staging
+          slo: latency
+        annotations:
+          summary: "OpsPilot latency error budget burn is elevated"
+          description: "The 99% under 250ms latency SLO is burning faster than 6x across both the 6-hour and 30-minute windows."

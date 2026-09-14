@@ -1,0 +1,74 @@
+rule_files:
+  - prometheus-rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: all-burn-rate-alerts
+    interval: 1m
+
+    input_series:
+      # Availability:
+      # 98 successful + 2 failed requests/minute
+      # 2% error ratio / 0.1% budget = 20x burn
+      - series: 'opspilot_http_requests_total{job="opspilot-staging-api",route="/health",status_code="200"}'
+        values: '0+98x400'
+
+      - series: 'opspilot_http_requests_total{job="opspilot-staging-api",route="/health",status_code="500"}'
+        values: '0+2x400'
+
+      # Latency:
+      # 100 requests/minute total
+      # 80 requests/minute <=250ms
+      # therefore 20% are slow
+      # 20% / 1% latency budget = 20x burn
+      - series: 'opspilot_http_request_duration_seconds_count{job="opspilot-staging-api",route="/health"}'
+        values: '0+100x400'
+
+      - series: 'opspilot_http_request_duration_seconds_bucket{job="opspilot-staging-api",route="/health",le="0.25"}'
+        values: '0+80x400'
+
+    alert_rule_test:
+      - eval_time: 370m
+        alertname: OpsPilotAvailabilityBurnRateCritical
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              environment: staging
+              slo: availability
+            exp_annotations:
+              summary: "OpsPilot availability error budget is burning rapidly"
+              description: "The 99.9% availability SLO is burning faster than 14.4x across both the 1-hour and 5-minute windows."
+
+      - eval_time: 370m
+        alertname: OpsPilotAvailabilityBurnRateWarning
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              environment: staging
+              slo: availability
+            exp_annotations:
+              summary: "OpsPilot availability error budget burn is elevated"
+              description: "The 99.9% availability SLO is burning faster than 6x across both the 6-hour and 30-minute windows."
+
+      - eval_time: 370m
+        alertname: OpsPilotLatencyBurnRateCritical
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              environment: staging
+              slo: latency
+            exp_annotations:
+              summary: "OpsPilot latency error budget is burning rapidly"
+              description: "The 99% under 250ms latency SLO is burning faster than 14.4x across both the 1-hour and 5-minute windows."
+
+      - eval_time: 370m
+        alertname: OpsPilotLatencyBurnRateWarning
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              environment: staging
+              slo: latency
+            exp_annotations:
+              summary: "OpsPilot latency error budget burn is elevated"
+              description: "The 99% under 250ms latency SLO is burning faster than 6x across both the 6-hour and 30-minute windows."
