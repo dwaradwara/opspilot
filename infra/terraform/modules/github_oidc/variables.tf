@@ -41,3 +41,7 @@ variable "ecs_task_role_arn" {
   description = "ECS application task role GitHub Actions may pass when registering task definitions"
   type        = string
 }
+variable "ecs_worker_service_arn" {
+  description = "ARN of the ECS worker service GitHub Actions may deploy"
+  type        = string
+}

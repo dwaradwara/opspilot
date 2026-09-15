@@ -227,3 +227,168 @@ resource "aws_iam_role_policy" "task_execution_secrets" {
   role   = aws_iam_role.task_execution.id
   policy = data.aws_iam_policy_document.task_execution_secrets.json
 }
+resource "aws_cloudwatch_log_group" "worker" {
+  name              = "/opspilot/${var.name}/worker"
+  retention_in_days = 7
+
+  tags = {
+    Name = "${var.name}-worker-logs"
+  }
+}
+
+resource "aws_ecs_task_definition" "worker" {
+  family                   = "${var.name}-worker"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+
+  cpu    = tostring(var.cpu)
+  memory = tostring(var.memory)
+
+  execution_role_arn = aws_iam_role.task_execution.arn
+  task_role_arn      = aws_iam_role.task.arn
+
+  container_definitions = jsonencode([
+    {
+      name              = "log-router"
+      image             = var.firelens_image
+      essential         = true
+      memoryReservation = 64
+      user              = "0"
+
+      environment    = []
+      mountPoints    = []
+      portMappings   = []
+      systemControls = []
+      volumesFrom    = []
+
+      firelensConfiguration = {
+        type = "fluentbit"
+
+        options = {
+          "enable-ecs-log-metadata" = "true"
+        }
+      }
+
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.worker.name
+          awslogs-region        = data.aws_region.current.region
+          awslogs-stream-prefix = "firelens"
+        }
+      }
+    },
+
+    {
+      name      = "worker"
+      image     = var.container_image
+      essential = true
+
+      command = [
+        "python",
+        "-m",
+        "app.services.outbox_dispatcher",
+      ]
+
+      portMappings = [
+        {
+          containerPort = 9101
+          hostPort      = 9101
+          protocol      = "tcp"
+        }
+      ]
+
+      environment = [
+        {
+          name  = "ENVIRONMENT"
+          value = "staging"
+        },
+        {
+          name  = "OTEL_SERVICE_NAME"
+          value = "opspilot-worker"
+        },
+        {
+          name  = "OTEL_ENVIRONMENT"
+          value = "staging"
+        },
+        {
+          name  = "DATABASE_HOST"
+          value = var.database_host
+        },
+        {
+          name  = "DATABASE_PORT"
+          value = tostring(var.database_port)
+        },
+        {
+          name  = "DATABASE_NAME"
+          value = var.database_name
+        },
+        {
+          name  = "DATABASE_USER"
+          value = var.database_user
+        },
+        {
+          name  = "REDIS_URL"
+          value = "rediss://${var.redis_host}:${var.redis_port}/0"
+        }
+      ]
+
+      secrets = [
+        {
+          name      = "DATABASE_PASSWORD"
+          valueFrom = "${var.database_secret_arn}:password::"
+        },
+        {
+          name      = "JWT_SECRET"
+          valueFrom = var.jwt_secret_arn
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awsfirelens"
+
+        options = {
+          Name        = "loki"
+          Host        = var.loki_host
+          Port        = tostring(var.loki_port)
+          Labels      = "job=opspilot-worker,environment=staging"
+          Line_Format = "json"
+        }
+      }
+    }
+  ])
+
+  tags = {
+    Name = "${var.name}-worker-task"
+  }
+}
+
+resource "aws_ecs_service" "worker" {
+  name            = "${var.name}-worker-service"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.worker.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
+  network_configuration {
+    subnets          = var.subnet_ids
+    security_groups  = [var.security_group_id]
+    assign_public_ip = var.assign_public_ip
+  }
+
+  lifecycle {
+    ignore_changes = [
+      task_definition,
+    ]
+  }
+
+  tags = {
+    Name = "${var.name}-worker-service"
+  }
+}

@@ -109,6 +109,7 @@ module "github_oidc" {
 
   ecr_repository_arn          = module.registry.repository_arn
   ecs_service_arn             = module.compute.api_service_arn
+  ecs_worker_service_arn      = module.compute.worker_service_arn
   ecs_task_execution_role_arn = module.compute.task_execution_role_arn
   ecs_task_role_arn           = module.compute.task_role_arn
 }

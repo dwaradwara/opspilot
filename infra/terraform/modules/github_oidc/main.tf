@@ -144,6 +144,7 @@ data "aws_iam_policy_document" "ecs_deploy" {
 
     resources = [
       var.ecs_service_arn,
+      var.ecs_worker_service_arn,
     ]
   }
 
