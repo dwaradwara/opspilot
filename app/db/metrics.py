@@ -1,4 +1,9 @@
-﻿from prometheus_client import Gauge
+from prometheus_client import Counter, Gauge
+from sqlalchemy.exc import (
+    OperationalError,
+    SQLAlchemyError,
+    TimeoutError as SQLAlchemyTimeoutError,
+)
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 
@@ -31,6 +36,36 @@ DB_POOL_OVERFLOW = Gauge(
     "opspilot_db_pool_overflow_connections",
     "Number of database connections currently using pool overflow capacity",
 )
+
+DB_ERRORS_TOTAL = Counter(
+    "opspilot_db_errors_total",
+    "Total database errors observed by OpsPilot",
+    ["error_type"],
+)
+
+
+def classify_db_error(exc: SQLAlchemyError) -> str:
+    message = str(exc).lower()
+
+    if (
+        "statement timeout" in message
+        or "querycancelederror" in message
+    ):
+        return "statement_timeout"
+
+    if isinstance(exc, SQLAlchemyTimeoutError):
+        return "pool_timeout"
+
+    if isinstance(exc, OperationalError):
+        return "connection_error"
+
+    return "database_error"
+
+
+def record_db_error(exc: SQLAlchemyError) -> None:
+    DB_ERRORS_TOTAL.labels(
+        error_type=classify_db_error(exc)
+    ).inc()
 
 
 def register_db_pool_metrics(

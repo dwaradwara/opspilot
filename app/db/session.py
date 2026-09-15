@@ -1,9 +1,10 @@
 from collections.abc import AsyncGenerator
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
-from app.db.metrics import register_db_pool_metrics
+from app.db.metrics import record_db_error, register_db_pool_metrics
 
 
 engine = create_async_engine(
@@ -31,4 +32,8 @@ AsyncSessionLocal = async_sessionmaker(
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        except SQLAlchemyError as exc:
+            record_db_error(exc)
+            raise

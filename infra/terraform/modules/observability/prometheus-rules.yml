@@ -193,6 +193,62 @@ groups:
           summary: "OpsPilot latency error budget burn is elevated"
           description: "The 99% under 250ms latency SLO is burning faster than 6x across both the 6-hour and 30-minute windows."
 
+      - alert: OpsPilotDbStatementTimeout
+        expr: |
+          sum(
+            increase(
+              opspilot_db_errors_total{
+                job="opspilot-staging-api",
+                error_type="statement_timeout"
+              }[5m]
+            )
+          ) > 0
+        for: 1m
+        labels:
+          severity: warning
+          environment: staging
+          component: database
+        annotations:
+          summary: "OpsPilot PostgreSQL statement timeout detected"
+          description: "At least one PostgreSQL query exceeded the configured statement timeout during the last 5 minutes."
+
+      - alert: OpsPilotDbPoolTimeout
+        expr: |
+          sum(
+            increase(
+              opspilot_db_errors_total{
+                job="opspilot-staging-api",
+                error_type="pool_timeout"
+              }[5m]
+            )
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          environment: staging
+          component: database
+        annotations:
+          summary: "OpsPilot database connection pool exhausted"
+          description: "At least one request timed out waiting for a database connection during the last 5 minutes."
+
+      - alert: OpsPilotDbConnectionError
+        expr: |
+          sum(
+            increase(
+              opspilot_db_errors_total{
+                job="opspilot-staging-api",
+                error_type="connection_error"
+              }[5m]
+            )
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          environment: staging
+          component: database
+        annotations:
+          summary: "OpsPilot database connection errors detected"
+          description: "OpsPilot encountered database connection failures during the last 5 minutes."
       - alert: OpsPilotBlackboxProbeFailed
         expr: |
           probe_success{

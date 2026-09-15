@@ -118,3 +118,59 @@ tests:
             exp_annotations:
               summary: "OpsPilot staging synthetic probe latency is high"
               description: "The external Blackbox probe to the OpsPilot staging API has exceeded 1 second for more than 5 minutes."
+  - name: db-statement-timeout
+    interval: 1m
+
+    input_series:
+      - series: 'opspilot_db_errors_total{job="opspilot-staging-api",error_type="statement_timeout"}'
+        values: '0+1x10'
+
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: OpsPilotDbStatementTimeout
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              environment: staging
+              component: database
+            exp_annotations:
+              summary: "OpsPilot PostgreSQL statement timeout detected"
+              description: "At least one PostgreSQL query exceeded the configured statement timeout during the last 5 minutes."
+
+  - name: db-pool-timeout
+    interval: 1m
+
+    input_series:
+      - series: 'opspilot_db_errors_total{job="opspilot-staging-api",error_type="pool_timeout"}'
+        values: '0+1x10'
+
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: OpsPilotDbPoolTimeout
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              environment: staging
+              component: database
+            exp_annotations:
+              summary: "OpsPilot database connection pool exhausted"
+              description: "At least one request timed out waiting for a database connection during the last 5 minutes."
+
+  - name: db-connection-error
+    interval: 1m
+
+    input_series:
+      - series: 'opspilot_db_errors_total{job="opspilot-staging-api",error_type="connection_error"}'
+        values: '0+1x10'
+
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: OpsPilotDbConnectionError
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              environment: staging
+              component: database
+            exp_annotations:
+              summary: "OpsPilot database connection errors detected"
+              description: "OpsPilot encountered database connection failures during the last 5 minutes."
