@@ -12,6 +12,13 @@ engine = create_async_engine(
     pool_size=settings.db_pool_size,
     max_overflow=settings.db_max_overflow,
     pool_timeout=settings.db_pool_timeout_seconds,
+    connect_args={
+        "server_settings": {
+            "statement_timeout": str(
+                int(settings.db_statement_timeout_seconds * 1000)
+            ),
+        },
+    },
 )
 
 register_db_pool_metrics(engine, settings.db_max_overflow)

@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     db_pool_size: int = 5
     db_max_overflow: int = 10
     db_pool_timeout_seconds: float = 30.0
+    db_statement_timeout_seconds: float = 5.0
 
     redis_url: str
     redis_queue_key: str = "opspilot:jobs"
