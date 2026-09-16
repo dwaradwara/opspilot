@@ -535,7 +535,6 @@ operational runbooks
 eight controlled incident drills
 ```
 
-The remaining work is primarily portfolio hardening: architecture presentation, evidence/screenshots, documentation navigation, and interview-focused project explanation.
 
 ---
 
