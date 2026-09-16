@@ -1,6 +1,6 @@
-OpsPilot
+# OpsPilot
 
-
+[![OpsPilot CI](https://github.com/dwaradwara/opspilot/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/dwaradwara/opspilot/actions/workflows/ci.yml)
 
 OpsPilot is a production-support and reliability engineering project built around a multi-tenant SaaS API and operated in an AWS staging environment.
 
@@ -8,68 +8,46 @@ The project focuses on work performed in Technical Support, Production Support, 
 
 This is not a CRUD-only demo. The application is intentionally used as the workload for production-style reliability engineering.
 
-What OpsPilot Demonstrates
+---
+
+## What OpsPilot Demonstrates
 
 OpsPilot currently demonstrates:
 
-Multi-tenant FastAPI application design
+- Multi-tenant FastAPI application design
+- JWT authentication and role-based access control
+- PostgreSQL persistence with SQLAlchemy and Alembic
+- Redis-backed asynchronous processing
+- Transactional outbox pattern
+- Retry, timeout, exponential backoff, and circuit-breaker behavior
+- AWS ECS Fargate application and worker services
+- Application Load Balancer health checking
+- Amazon RDS PostgreSQL
+- Amazon ElastiCache for Redis
+- Amazon ECR immutable image deployments
+- AWS Secrets Manager integration
+- Terraform infrastructure as code
+- GitHub Actions CI/CD using AWS OIDC
+- Database migration gating before deployment
+- ECS deployment circuit breaker and automatic rollback
+- Prometheus metrics
+- Amazon Managed Service for Prometheus remote storage
+- Grafana dashboards
+- Loki centralized logging
+- OpenTelemetry tracing with Tempo
+- Blackbox synthetic monitoring
+- Alertmanager and Amazon SNS alert delivery
+- SLOs, SLIs, error budgets, and multi-window burn-rate alerts
+- Health and dependency-aware readiness checks
+- Structured JSON logging and request correlation
+- Controlled failure injection
+- Incident documentation and operational runbooks
 
-JWT authentication and role-based access control
+---
 
-PostgreSQL persistence with SQLAlchemy and Alembic
+## AWS Staging Architecture
 
-Redis-backed asynchronous processing
-
-Transactional outbox pattern
-
-Retry, timeout, exponential backoff, and circuit-breaker behavior
-
-AWS ECS Fargate application and worker services
-
-Application Load Balancer health checking
-
-Amazon RDS PostgreSQL
-
-Amazon ElastiCache for Redis
-
-Amazon ECR immutable image deployments
-
-AWS Secrets Manager integration
-
-Terraform infrastructure as code
-
-GitHub Actions CI/CD using AWS OIDC
-
-Database migration gating before deployment
-
-ECS deployment circuit breaker and automatic rollback
-
-Prometheus metrics
-
-Amazon Managed Service for Prometheus remote storage
-
-Grafana dashboards
-
-Loki centralized logging
-
-OpenTelemetry tracing with Tempo
-
-Blackbox synthetic monitoring
-
-Alertmanager and Amazon SNS alert delivery
-
-SLOs, SLIs, error budgets, and multi-window burn-rate alerts
-
-Health and dependency-aware readiness checks
-
-Structured JSON logging and request correlation
-
-Controlled failure injection
-
-Incident documentation and operational runbooks
-
-AWS Staging Architecture
-
+```text
                               GitHub Actions
                                    |
                          OIDC -> AWS IAM Role
@@ -103,13 +81,17 @@ AWS Staging Architecture
                              +------> | ECS Fargate    |
                                       | Outbox Worker  |
                                       +----------------+
+```
 
 The API and worker use the same immutable application image but run as separate ECS services.
 
 Ticket creation writes both application data and notification intent into PostgreSQL. The background dispatcher later publishes pending events to Redis. This allows ticket persistence to succeed even when Redis is temporarily unavailable.
 
-Observability Architecture
+---
 
+## Observability Architecture
+
+```text
 OpsPilot API / Worker
        |
        +---------------- Structured logs ----------------+
@@ -137,85 +119,78 @@ OpsPilot API / Worker
 Blackbox Exporter ---> external /health probe
 
 Grafana ---> Prometheus / AMP / Loki / Tempo
+```
 
 The observability stack includes:
 
-Prometheus
-
-Grafana
-
-Loki
-
-Tempo
-
-OpenTelemetry
-
-Blackbox Exporter
-
-Alertmanager
-
-Amazon Managed Service for Prometheus
-
-Amazon SNS
-
-CloudWatch logs for supporting infrastructure
-
-S3-backed Loki and Tempo storage
+- Prometheus
+- Grafana
+- Loki
+- Tempo
+- OpenTelemetry
+- Blackbox Exporter
+- Alertmanager
+- Amazon Managed Service for Prometheus
+- Amazon SNS
+- CloudWatch logs for supporting infrastructure
+- S3-backed Loki and Tempo storage
 
 Grafana provides both operational overview and SLO/error-budget dashboards.
 
-Reliability Model
+---
+
+## Reliability Model
 
 OpsPilot separates basic process health from dependency-aware readiness.
 
-Health
+### Health
 
+```text
 GET /health
+```
 
 Confirms that the API process is alive.
 
-Readiness
+### Readiness
 
+```text
 GET /ready
+```
 
 Validates critical application dependencies including:
 
-PostgreSQL connectivity
-
-expected database schema revision
-
-Redis connectivity
+- PostgreSQL connectivity
+- expected database schema revision
+- Redis connectivity
 
 This distinction is used during incident investigation to determine whether the process itself is alive while one of its dependencies is degraded.
 
-SLOs and Error Budgets
+---
+
+## SLOs and Error Budgets
 
 The staging environment includes service-level reliability measurements.
 
 Current targets include:
 
-Objective
-
-Target
-
-Availability
-
-99.9%
-
-Latency
-
-95% of requests under 500 ms
+| Objective | Target |
+|---|---:|
+| Availability | 99.9% |
+| Latency | 95% of requests under 500 ms |
 
 Prometheus recording rules calculate availability, error rate, latency compliance, and error-budget consumption.
 
 OpsPilot also implements multi-window burn-rate alerting so alerts are based on sustained reliability impact rather than individual HTTP failures.
 
-Alert rules are validated automatically in CI with promtool.
+Alert rules are validated automatically in CI with `promtool`.
 
-Resilient Event Delivery
+---
+
+## Resilient Event Delivery
 
 Ticket notification processing uses a transactional outbox architecture.
 
+```text
 API request
    |
    v
@@ -234,27 +209,27 @@ PostgreSQL transaction
            |
            v
           Redis
+```
 
 If Redis becomes unavailable:
 
-the ticket can still be persisted;
-
-the outbox event remains pending in PostgreSQL;
-
-publishing is retried with bounded exponential backoff;
-
-repeated Redis failures open the circuit breaker;
-
-after Redis recovery, pending events can be published again.
+1. the ticket can still be persisted;
+2. the outbox event remains pending in PostgreSQL;
+3. publishing is retried with bounded exponential backoff;
+4. repeated Redis failures open the circuit breaker;
+5. after Redis recovery, pending events can be published again.
 
 This behavior was validated through controlled staging failure injection.
 
-CI/CD
+---
 
-GitHub Actions runs automatically on pushes and pull requests targeting master.
+## CI/CD
+
+GitHub Actions runs automatically on pushes and pull requests targeting `master`.
 
 The pipeline performs:
 
+```text
 Prometheus rule validation
         |
         v
@@ -284,6 +259,7 @@ one-off Alembic migration task
                    |
                    v
           external health smoke test
+```
 
 AWS authentication from GitHub uses OIDC rather than long-lived AWS access keys.
 
@@ -293,137 +269,89 @@ Database migrations must succeed before staging deployment proceeds.
 
 The API and worker are both verified after deployment.
 
-Automated Tests
+---
+
+## Automated Tests
 
 The repository contains an isolated Docker Compose test environment with dedicated PostgreSQL and Redis services.
 
 Coverage includes:
 
-tenant isolation
-
-authorization and RBAC
-
-health and readiness behavior
-
-database timeout behavior
-
-database error metrics
-
-structured logging
-
-feature-flag behavior
-
-outbox resilience
-
-Redis circuit-breaker behavior
+- tenant isolation
+- authorization and RBAC
+- health and readiness behavior
+- database timeout behavior
+- database error metrics
+- structured logging
+- feature-flag behavior
+- outbox resilience
+- Redis circuit-breaker behavior
 
 Run the test environment with:
 
+```bash
 docker compose -f docker-compose.test.yml up \
   --build \
   --abort-on-container-exit \
   --exit-code-from api_test
+```
 
 Clean up with:
 
+```bash
 docker compose -f docker-compose.test.yml down -v
+```
 
-Incident Engineering
+---
+
+## Incident Engineering
 
 Controlled failure injection is performed only in staging or isolated one-off tasks.
 
 Eight production-style incidents have been executed and documented.
 
-Incident
-
-Scenario
-
-Engineering Focus
-
-INC-001
-
-Nginx upstream 502
-
-proxy/upstream diagnosis
-
-INC-002
-
-Redis outage and partial success
-
-transactional outbox and recovery
-
-INC-003
-
-PostgreSQL pool exhaustion
-
-connection-pool monitoring and recovery
-
-INC-004
-
-Failed ECS deployment
-
-ALB health checks and automatic rollback
-
-INC-005
-
-Feature-flag regression
-
-functional failure hidden behind healthy infrastructure
-
-INC-006
-
-PostgreSQL deadlock
-
-locking, concurrency, and deadlock recovery
-
-INC-007
-
-Container memory exhaustion
-
-OOM diagnosis and blast-radius isolation
-
-INC-008
-
-HTTP 429 rate limiting
-
-throttling diagnosis and automatic recovery
+| Incident | Scenario | Engineering Focus |
+|---|---|---|
+| [INC-001](docs/incidents/INC-001-nginx-upstream-502.md) | Nginx upstream 502 | proxy/upstream diagnosis |
+| [INC-002](docs/incidents/INC-002-redis-partial-success.md) | Redis outage and partial success | transactional outbox and recovery |
+| [INC-003](docs/incidents/INC-003-postgres-pool-exhaustion.md) | PostgreSQL pool exhaustion | connection-pool monitoring and recovery |
+| [INC-004](docs/incidents/INC-004-ecs-deployment-rollback.md) | Failed ECS deployment | ALB health checks and automatic rollback |
+| [INC-005](docs/incidents/INC-005-feature-flag-regression.md) | Feature-flag regression | functional failure hidden behind healthy infrastructure |
+| [INC-006](docs/incidents/INC-006-postgres-deadlock.md) | PostgreSQL deadlock | locking, concurrency, and deadlock recovery |
+| [INC-007](docs/incidents/INC-007-container-memory-exhaustion.md) | Container memory exhaustion | OOM diagnosis and blast-radius isolation |
+| [INC-008](docs/incidents/INC-008-rate-limit-exhaustion.md) | HTTP 429 rate limiting | throttling diagnosis and automatic recovery |
 
 Each incident follows the same operational pattern:
 
+```text
 detect
 -> investigate
 -> identify failure domain
 -> mitigate
 -> validate recovery
 -> document evidence
+```
 
-Operational Runbooks
+---
+
+## Operational Runbooks
 
 Formal runbooks currently include:
 
-Runbook
-
-Purpose
-
-HTTP 502 Upstream Failure
-
-diagnose reverse-proxy/upstream failures
-
-PostgreSQL Pool Exhaustion
-
-investigate pool saturation and database connectivity
-
-Redis Outage / Outbox Recovery
-
-diagnose delayed asynchronous processing and safely validate recovery
+| Runbook | Purpose |
+|---|---|
+| [HTTP 502 Upstream Failure](docs/runbooks/http-502-upstream-failure.md) | diagnose reverse-proxy/upstream failures |
+| [PostgreSQL Pool Exhaustion](docs/runbooks/postgres-pool-exhaustion.md) | investigate pool saturation and database connectivity |
+| [Redis Outage / Outbox Recovery](docs/runbooks/redis-outage-outbox-recovery.md) | diagnose delayed asynchronous processing and safely validate recovery |
 
 Additional observability documentation:
 
-Centralized Logging
+- [Centralized Logging](docs/observability/centralized-logging.md)
+- [SLOs and Error Budgets](docs/observability/slo-error-budgets.md)
 
-SLOs and Error Budgets
+---
 
-Application Security
+## Application Security
 
 Every user belongs to an organization.
 
@@ -431,11 +359,9 @@ Application queries are scoped using the authenticated user's organization, prev
 
 Roles include:
 
-owner
-
-agent
-
-user
+- `owner`
+- `agent`
+- `user`
 
 Organization owners can create members. Lower-privileged roles cannot perform owner-only membership operations.
 
@@ -443,161 +369,120 @@ Automated tests validate cross-tenant isolation and role enforcement.
 
 Secrets such as the database password and JWT signing secret are provided to ECS through AWS Secrets Manager rather than committed to the repository.
 
-Rate Limiting
+---
+
+## Rate Limiting
 
 OpsPilot includes Redis-backed per-client request limiting.
 
 Default configuration:
 
+```text
 60 requests / 60 seconds
+```
 
 When a client exceeds the quota, the API returns:
 
+```text
 HTTP 429 Too Many Requests
 X-RateLimit-Limit
 X-RateLimit-Remaining
 Retry-After
+```
 
 Health, readiness, and metrics endpoints are excluded so operational monitoring remains available during client throttling.
 
-Database Reliability
+---
+
+## Database Reliability
 
 Database safeguards include:
 
-connection-pool metrics
-
-bounded connection acquisition timeout
-
-PostgreSQL statement timeout
-
-database error metrics
-
-schema revision validation
-
-indexed ticket query path
-
-Alembic migration management
-
-automated migration execution before deployment
+- connection-pool metrics
+- bounded connection acquisition timeout
+- PostgreSQL statement timeout
+- database error metrics
+- schema revision validation
+- indexed ticket query path
+- Alembic migration management
+- automated migration execution before deployment
 
 A slow-query exercise also validated index-based query optimization before the incident-testing phase.
 
-Technology Stack
+---
 
-Area
+## Technology Stack
 
-Technology
+| Area | Technology |
+|---|---|
+| API | FastAPI |
+| Language | Python |
+| Database | PostgreSQL / Amazon RDS |
+| ORM | SQLAlchemy |
+| Migrations | Alembic |
+| Cache / Queue | Redis / Amazon ElastiCache |
+| Worker | Python outbox dispatcher |
+| Containers | Docker / AWS ECS Fargate |
+| Load Balancing | AWS Application Load Balancer |
+| Registry | Amazon ECR |
+| Infrastructure | Terraform |
+| Secrets | AWS Secrets Manager |
+| CI/CD | GitHub Actions + AWS OIDC |
+| Metrics | Prometheus + Amazon Managed Prometheus |
+| Dashboards | Grafana |
+| Logs | Loki + FireLens / Fluent Bit |
+| Tracing | OpenTelemetry + Tempo |
+| Synthetic Monitoring | Blackbox Exporter |
+| Alerting | Alertmanager + Amazon SNS |
+| Testing | Pytest + Docker Compose |
 
-API
+---
 
-FastAPI
-
-Language
-
-Python
-
-Database
-
-PostgreSQL / Amazon RDS
-
-ORM
-
-SQLAlchemy
-
-Migrations
-
-Alembic
-
-Cache / Queue
-
-Redis / Amazon ElastiCache
-
-Worker
-
-Python outbox dispatcher
-
-Containers
-
-Docker / AWS ECS Fargate
-
-Load Balancing
-
-AWS Application Load Balancer
-
-Registry
-
-Amazon ECR
-
-Infrastructure
-
-Terraform
-
-Secrets
-
-AWS Secrets Manager
-
-CI/CD
-
-GitHub Actions + AWS OIDC
-
-Metrics
-
-Prometheus + Amazon Managed Prometheus
-
-Dashboards
-
-Grafana
-
-Logs
-
-Loki + FireLens / Fluent Bit
-
-Tracing
-
-OpenTelemetry + Tempo
-
-Synthetic Monitoring
-
-Blackbox Exporter
-
-Alerting
-
-Alertmanager + Amazon SNS
-
-Testing
-
-Pytest + Docker Compose
-
-Local Development
+## Local Development
 
 Create the environment file:
 
+```bash
 cp .env.example .env
+```
 
 Replace example secrets with local development values.
 
 Start the stack:
 
+```bash
 docker compose up --build -d
+```
 
 Check containers:
 
+```bash
 docker compose ps
+```
 
 Application health:
 
+```text
 http://localhost:8080/health
+```
 
 API documentation:
 
+```text
 http://localhost:8080/docs
+```
 
 Stop the environment:
 
+```bash
 docker compose down
+```
 
-Repository Structure
+---
 
+## Repository Structure
+
+```text
 opspilot/
 ├── app/                         FastAPI application and worker
 ├── alembic/                     database migrations
@@ -613,8 +498,11 @@ opspilot/
 ├── docker-compose.yml           local development
 ├── docker-compose.test.yml      isolated tests
 └── docker-compose.staging.yml   staging-oriented container configuration
+```
 
-Engineering Rule
+---
+
+## Engineering Rule
 
 Production-style reliability testing must have a controlled blast radius.
 
@@ -622,12 +510,15 @@ Destructive tests, dependency failures, bad deployment simulations, resource exh
 
 The purpose is to learn how systems fail without treating uncontrolled breakage as engineering.
 
-Project Status
+---
+
+## Project Status
 
 OpsPilot has completed its main engineering and incident-validation phases.
 
 Current completed areas include:
 
+```text
 application foundation
 security and tenant isolation
 AWS staging infrastructure
@@ -642,19 +533,22 @@ alerting
 dependency resilience
 operational runbooks
 eight controlled incident drills
+```
 
 The remaining work is primarily portfolio hardening: architecture presentation, evidence/screenshots, documentation navigation, and interview-focused project explanation.
 
-Why This Project Exists
+---
+
+## Why This Project Exists
 
 OpsPilot was built to practice the gap between writing software and supporting software in production-like conditions.
 
 The central question is not:
 
-"Can the API return a successful response?"
+> "Can the API return a successful response?"
 
 It is:
 
-"When the system fails, can the failure be detected, isolated, explained, recovered safely, and prevented from becoming harder to diagnose next time?"
+> "When the system fails, can the failure be detected, isolated, explained, recovered safely, and prevented from becoming harder to diagnose next time?"
 
 That is the engineering problem OpsPilot is designed to demonstrate.
