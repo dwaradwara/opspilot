@@ -634,20 +634,20 @@ docker compose down
 
 ```text
 opspilot/
-├── app/                         FastAPI application and worker
+├── app/                         FastAPI application and application services
+├── worker/                      Redis event consumer and worker metrics
 ├── alembic/                     database migrations
 ├── tests/                       automated test suite
 ├── infra/terraform/             AWS infrastructure as code
-├── monitoring/                  local monitoring configuration
+├── monitoring/                  Prometheus, Grafana, Loki, Tempo and alerting
 ├── nginx/                       local reverse-proxy configuration
-├── docs/
-│   ├── incidents/               failure-injection reports
-│   ├── runbooks/                operational response procedures
-│   └── observability/           logging and SLO documentation
-├── .github/workflows/           CI/CD workflows
-├── docker-compose.yml           local development
-├── docker-compose.test.yml      isolated tests
-└── docker-compose.staging.yml   staging-oriented container configuration
+├── docs/                        architecture, incidents, runbooks and evidence
+├── scripts/                     environment verification utilities
+├── .github/workflows/           CI/CD pipeline
+├── Dockerfile
+├── docker-compose.yml
+├── docker-compose.staging.yml
+└── docker-compose.test.yml
 ```
 
 ---
