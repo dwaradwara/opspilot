@@ -1,251 +1,412 @@
-# OpsPilot
-
-[![OpsPilot CI](https://github.com/dwaradwara/opspilot/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/dwaradwara/opspilot/actions/workflows/ci.yml)
-
-OpsPilot is a production-support and reliability engineering platform built to simulate the architecture, security boundaries, observability, and operational workflows of a real multi-tenant SaaS system.
-
-The project is designed as a hands-on environment for production-support engineering, incident investigation, reliability testing, and secure backend development.
-
-## What OpsPilot Demonstrates
-
-- Multi-tenant SaaS architecture
-- JWT-based authentication
-- Role-based access control
-- Tenant data isolation
-- PostgreSQL persistence
-- Redis-backed background jobs
-- FastAPI REST APIs
-- Nginx reverse proxy
-- Alembic database migrations
-- Structured JSON logging
-- Request correlation IDs
-- Health and readiness endpoints
-- Docker-based application environments
-- Automated security testing
-- GitHub Actions CI
-
-## Architecture
-
+OpsPilot
+![OpsPilot CI](https://github.com/dwaradwara/opspilot/actions/workflows/ci.yml/badge.svg?branch=master)
+OpsPilot is a production-support and reliability engineering project built around a multi-tenant SaaS API and operated in an AWS staging environment.
+The project focuses on work performed in Technical Support, Production Support, Cloud Support, and SRE-adjacent roles: deploying services, monitoring them, investigating failures, protecting customer operations during dependency outages, validating recovery, and documenting incidents with reproducible evidence.
+This is not a CRUD-only demo. The application is intentionally used as the workload for production-style reliability engineering.
+---
+What OpsPilot Demonstrates
+OpsPilot currently demonstrates:
+Multi-tenant FastAPI application design
+JWT authentication and role-based access control
+PostgreSQL persistence with SQLAlchemy and Alembic
+Redis-backed asynchronous processing
+Transactional outbox pattern
+Retry, timeout, exponential backoff, and circuit-breaker behavior
+AWS ECS Fargate application and worker services
+Application Load Balancer health checking
+Amazon RDS PostgreSQL
+Amazon ElastiCache for Redis
+Amazon ECR immutable image deployments
+AWS Secrets Manager integration
+Terraform infrastructure as code
+GitHub Actions CI/CD using AWS OIDC
+Database migration gating before deployment
+ECS deployment circuit breaker and automatic rollback
+Prometheus metrics
+Amazon Managed Service for Prometheus remote storage
+Grafana dashboards
+Loki centralized logging
+OpenTelemetry tracing with Tempo
+Blackbox synthetic monitoring
+Alertmanager and Amazon SNS alert delivery
+SLOs, SLIs, error budgets, and multi-window burn-rate alerts
+Health and dependency-aware readiness checks
+Structured JSON logging and request correlation
+Controlled failure injection
+Incident documentation and operational runbooks
+---
+AWS Staging Architecture
 ```text
-                    ┌─────────────────┐
-                    │     Client      │
-                    └────────┬────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │      Nginx      │
-                    │ Reverse Proxy   │
-                    └────────┬────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │   FastAPI API   │
-                    │ Auth / Tickets  │
-                    │ Members / RBAC  │
-                    └──────┬────┬─────┘
-                           │    │
-                 ┌─────────┘    └─────────┐
-                 ▼                        ▼
-        ┌─────────────────┐      ┌─────────────────┐
-        │   PostgreSQL    │      │      Redis      │
-        │ Users / Orgs /  │      │   Job Queue     │
-        │     Tickets     │      └────────┬────────┘
-        └─────────────────┘               │
-                                          ▼
-                                 ┌─────────────────┐
-                                 │ Background      │
-                                 │ Worker          │
-                                 └─────────────────┘
+                              GitHub Actions
+                                   |
+                         OIDC -> AWS IAM Role
+                                   |
+                    Test -> Build -> ECR -> Deploy
+                                   |
+                                   v
++----------------+        +---------------------+
+|     Client     | -----> | Application Load    |
+|                |        | Balancer            |
++----------------+        +----------+----------+
+                                    |
+                                    v
+                         +---------------------+
+                         | ECS Fargate         |
+                         | OpsPilot API        |
+                         | FastAPI             |
+                         +----+-----------+----+
+                              |           |
+                    SQL       |           | Redis
+                              |           |
+                              v           v
+                       +-----------+  +----------------+
+                       | Amazon    |  | ElastiCache    |
+                       | RDS       |  | Redis          |
+                       | PostgreSQL|  +--------+-------+
+                       +-----+-----+           |
+                             |                 |
+                             |                 v
+                             |        +----------------+
+                             +------> | ECS Fargate    |
+                                      | Outbox Worker  |
+                                      +----------------+
 ```
-
-## Security Model
-
-Every user belongs to an organization.
-
-Application queries are tenant-scoped using the authenticated user's `organization_id`, preventing users from accessing tickets belonging to another organization.
-
-Current roles:
-
-- `owner`
-- `agent`
-- `user`
-
-Organization owners can create members.
-
-Agents and regular users cannot create organization members.
-
-The server assigns the organization automatically rather than trusting a client-supplied tenant identifier.
-
-Security tests verify:
-
-- Cross-tenant ticket access is blocked
-- Cross-tenant ticket modification is blocked
-- Organization owners can create members
-- Agents cannot create members
-- Newly created members remain inside the owner's organization
-
-## Technology Stack
-
-| Layer | Technology |
-|---|---|
-| API | FastAPI |
-| Database | PostgreSQL |
-| ORM | SQLAlchemy |
-| Migrations | Alembic |
-| Queue | Redis |
-| Worker | Python background worker |
-| Proxy | Nginx |
-| Authentication | JWT / OAuth2 |
-| Validation | Pydantic |
-| Testing | Pytest |
-| Containers | Docker Compose |
-| CI | GitHub Actions |
-
-## Local Development
-
-Create the local environment file:
-
-```bash
-cp .env.example .env
-```
-
-Replace the example `JWT_SECRET` with a strong local secret.
-
-Start the application:
-
-```bash
-docker compose up --build -d
-```
-
-Check container status:
-
-```bash
-docker compose ps
-```
-
-Health endpoint:
-
+The API and worker use the same immutable application image but run as separate ECS services.
+Ticket creation writes both application data and notification intent into PostgreSQL. The background dispatcher later publishes pending events to Redis. This allows ticket persistence to succeed even when Redis is temporarily unavailable.
+---
+Observability Architecture
 ```text
-http://localhost:8080/health
+OpsPilot API / Worker
+       |
+       +---------------- Structured logs ----------------+
+       |                                                 |
+       |                                              FireLens
+       |                                                 |
+       |                                                 v
+       |                                               Loki
+       |
+       +---------------- OpenTelemetry -----------------> Tempo
+       |
+       +---------------- /metrics ----------------------> Prometheus
+                                                           |
+                                                           +--> Amazon Managed
+                                                           |    Prometheus
+                                                           |
+                                                           +--> Alert Rules
+                                                                  |
+                                                                  v
+                                                             Alertmanager
+                                                                  |
+                                                                  v
+                                                               AWS SNS
+
+Blackbox Exporter ---> external /health probe
+
+Grafana ---> Prometheus / AMP / Loki / Tempo
 ```
-
-Interactive API documentation:
-
+The observability stack includes:
+Prometheus
+Grafana
+Loki
+Tempo
+OpenTelemetry
+Blackbox Exporter
+Alertmanager
+Amazon Managed Service for Prometheus
+Amazon SNS
+CloudWatch logs for supporting infrastructure
+S3-backed Loki and Tempo storage
+Grafana provides both operational overview and SLO/error-budget dashboards.
+---
+Reliability Model
+OpsPilot separates basic process health from dependency-aware readiness.
+Health
 ```text
-http://localhost:8080/docs
+GET /health
 ```
-
-## API Workflow
-
-### 1. Register an organization owner
-
+Confirms that the API process is alive.
+Readiness
 ```text
-POST /api/v1/auth/register
+GET /ready
 ```
-
-### 2. Authenticate
-
+Validates critical application dependencies including:
+PostgreSQL connectivity
+expected database schema revision
+Redis connectivity
+This distinction is used during incident investigation to determine whether the process itself is alive while one of its dependencies is degraded.
+---
+SLOs and Error Budgets
+The staging environment includes service-level reliability measurements.
+Current targets include:
+Objective	Target
+Availability	99.9%
+Latency	95% of requests under 500 ms
+Prometheus recording rules calculate availability, error rate, latency compliance, and error-budget consumption.
+OpsPilot also implements multi-window burn-rate alerting so alerts are based on sustained reliability impact rather than individual HTTP failures.
+Alert rules are validated automatically in CI with `promtool`.
+---
+Resilient Event Delivery
+Ticket notification processing uses a transactional outbox architecture.
 ```text
-POST /api/v1/auth/token
+API request
+   |
+   v
+PostgreSQL transaction
+   |
+   +--> ticket
+   |
+   +--> outbox event
+           |
+           v
+     Outbox dispatcher
+           |
+       retry/backoff
+           |
+      circuit breaker
+           |
+           v
+          Redis
 ```
-
-Use the email address as the OAuth2 `username`.
-
-### 3. Create and manage tickets
-
+If Redis becomes unavailable:
+the ticket can still be persisted;
+the outbox event remains pending in PostgreSQL;
+publishing is retried with bounded exponential backoff;
+repeated Redis failures open the circuit breaker;
+after Redis recovery, pending events can be published again.
+This behavior was validated through controlled staging failure injection.
+---
+CI/CD
+GitHub Actions runs automatically on pushes and pull requests targeting `master`.
+The pipeline performs:
 ```text
-POST   /api/v1/tickets
-GET    /api/v1/tickets
-GET    /api/v1/tickets/{ticket_id}
-PATCH  /api/v1/tickets/{ticket_id}
+Prometheus rule validation
+        |
+        v
+isolated Docker test environment
+        |
+        v
+immutable image build
+        |
+        v
+Amazon ECR :<git-sha>
+        |
+        v
+new API + worker task definitions
+        |
+        v
+one-off Alembic migration task
+        |
+   migration succeeds?
+      /          \
+    no            yes
+    |              |
+ deployment       v
+  blocked      ECS deployment
+                   |
+                   v
+          wait for stabilization
+                   |
+                   v
+          external health smoke test
 ```
-
-Ticket access is restricted to the authenticated user's organization.
-
-### 4. Create organization members
-
-```text
-POST /api/v1/members
-```
-
-Only organization owners are authorized to use this endpoint.
-
-## Isolated Test Environment
-
-OpsPilot uses a dedicated Docker Compose environment for integration and security tests.
-
+AWS authentication from GitHub uses OIDC rather than long-lived AWS access keys.
+Container images are deployed using the exact Git commit SHA as the ECR image tag.
+Database migrations must succeed before staging deployment proceeds.
+The API and worker are both verified after deployment.
+---
+Automated Tests
+The repository contains an isolated Docker Compose test environment with dedicated PostgreSQL and Redis services.
+Coverage includes:
+tenant isolation
+authorization and RBAC
+health and readiness behavior
+database timeout behavior
+database error metrics
+structured logging
+feature-flag behavior
+outbox resilience
+Redis circuit-breaker behavior
+Run the test environment with:
 ```bash
 docker compose -f docker-compose.test.yml up \
   --build \
   --abort-on-container-exit \
   --exit-code-from api_test
 ```
-
-The test environment uses isolated PostgreSQL and Redis services and is separate from the development environment.
-
-Clean up after testing:
-
+Clean up with:
 ```bash
 docker compose -f docker-compose.test.yml down -v
 ```
-
-Current automated coverage includes:
-
+---
+Incident Engineering
+Controlled failure injection is performed only in staging or isolated one-off tasks.
+Eight production-style incidents have been executed and documented.
+Incident	Scenario	Engineering Focus
+INC-001	Nginx upstream 502	proxy/upstream diagnosis
+INC-002	Redis outage and partial success	transactional outbox and recovery
+INC-003	PostgreSQL pool exhaustion	connection-pool monitoring and recovery
+INC-004	Failed ECS deployment	ALB health checks and automatic rollback
+INC-005	Feature-flag regression	functional failure hidden behind healthy infrastructure
+INC-006	PostgreSQL deadlock	locking, concurrency, and deadlock recovery
+INC-007	Container memory exhaustion	OOM diagnosis and blast-radius isolation
+INC-008	HTTP 429 rate limiting	throttling diagnosis and automatic recovery
+Each incident follows the same operational pattern:
 ```text
-Health endpoint
-Tenant isolation
-Member role enforcement
+detect
+-> investigate
+-> identify failure domain
+-> mitigate
+-> validate recovery
+-> document evidence
 ```
-
-## Continuous Integration
-
-GitHub Actions runs the isolated Docker test environment automatically on:
-
-- Pushes to `master`
-- Pull requests targeting `master`
-
-A change is considered healthy only when the test container exits successfully.
-
-## Observability
-
-OpsPilot currently includes:
-
-- Structured JSON application logs
-- HTTP request IDs
-- Request duration tracking
-- HTTP status logging
-- Nginx access logging
-- Upstream response information
-- Health and readiness endpoints
-
-These components provide the foundation for later incident investigation and reliability exercises.
-
-## Reliability Engineering Rule
-
-Production is never intentionally broken.
-
-Failure injection, destructive recovery drills, load tests, bad-release simulations, dependency failures, and blind incident exercises belong in isolated staging environments.
-
-## Project Status
-
-### Completed
-
-- Phase 1.1 — Core platform foundation
-- Phase 1.2 — Tenant security and member role enforcement
-- Phase 1.3 — Automated Docker CI pipeline
-
-### Next
-
-- Deeper observability
-- Metrics and alerting
-- Incident simulation
-- Failure injection
-- Recovery drills
-- Operational runbooks
-- Postmortem documentation
-
-## Purpose
-
-OpsPilot is not intended to be a simple CRUD demo.
-
-The goal is to build and operate a realistic support and reliability environment where failures can be detected, investigated, explained, fixed, validated, and documented using production-style engineering practices.
+---
+Operational Runbooks
+Formal runbooks currently include:
+Runbook	Purpose
+HTTP 502 Upstream Failure	diagnose reverse-proxy/upstream failures
+PostgreSQL Pool Exhaustion	investigate pool saturation and database connectivity
+Redis Outage / Outbox Recovery	diagnose delayed asynchronous processing and safely validate recovery
+Additional observability documentation:
+Centralized Logging
+SLOs and Error Budgets
+---
+Application Security
+Every user belongs to an organization.
+Application queries are scoped using the authenticated user's organization, preventing cross-tenant access to ticket data.
+Roles include:
+`owner`
+`agent`
+`user`
+Organization owners can create members. Lower-privileged roles cannot perform owner-only membership operations.
+Automated tests validate cross-tenant isolation and role enforcement.
+Secrets such as the database password and JWT signing secret are provided to ECS through AWS Secrets Manager rather than committed to the repository.
+---
+Rate Limiting
+OpsPilot includes Redis-backed per-client request limiting.
+Default configuration:
+```text
+60 requests / 60 seconds
+```
+When a client exceeds the quota, the API returns:
+```text
+HTTP 429 Too Many Requests
+X-RateLimit-Limit
+X-RateLimit-Remaining
+Retry-After
+```
+Health, readiness, and metrics endpoints are excluded so operational monitoring remains available during client throttling.
+---
+Database Reliability
+Database safeguards include:
+connection-pool metrics
+bounded connection acquisition timeout
+PostgreSQL statement timeout
+database error metrics
+schema revision validation
+indexed ticket query path
+Alembic migration management
+automated migration execution before deployment
+A slow-query exercise also validated index-based query optimization before the incident-testing phase.
+---
+Technology Stack
+Area	Technology
+API	FastAPI
+Language	Python
+Database	PostgreSQL / Amazon RDS
+ORM	SQLAlchemy
+Migrations	Alembic
+Cache / Queue	Redis / Amazon ElastiCache
+Worker	Python outbox dispatcher
+Containers	Docker / AWS ECS Fargate
+Load Balancing	AWS Application Load Balancer
+Registry	Amazon ECR
+Infrastructure	Terraform
+Secrets	AWS Secrets Manager
+CI/CD	GitHub Actions + AWS OIDC
+Metrics	Prometheus + Amazon Managed Prometheus
+Dashboards	Grafana
+Logs	Loki + FireLens / Fluent Bit
+Tracing	OpenTelemetry + Tempo
+Synthetic Monitoring	Blackbox Exporter
+Alerting	Alertmanager + Amazon SNS
+Testing	Pytest + Docker Compose
+---
+Local Development
+Create the environment file:
+```bash
+cp .env.example .env
+```
+Replace example secrets with local development values.
+Start the stack:
+```bash
+docker compose up --build -d
+```
+Check containers:
+```bash
+docker compose ps
+```
+Application health:
+```text
+http://localhost:8080/health
+```
+API documentation:
+```text
+http://localhost:8080/docs
+```
+Stop the environment:
+```bash
+docker compose down
+```
+---
+Repository Structure
+```text
+opspilot/
+├── app/                         FastAPI application and worker
+├── alembic/                     database migrations
+├── tests/                       automated test suite
+├── infra/terraform/             AWS infrastructure as code
+├── monitoring/                  local monitoring configuration
+├── nginx/                       local reverse-proxy configuration
+├── docs/
+│   ├── incidents/               failure-injection reports
+│   ├── runbooks/                operational response procedures
+│   └── observability/           logging and SLO documentation
+├── .github/workflows/           CI/CD workflows
+├── docker-compose.yml           local development
+├── docker-compose.test.yml      isolated tests
+└── docker-compose.staging.yml   staging-oriented container configuration
+```
+---
+Engineering Rule
+Production-style reliability testing must have a controlled blast radius.
+Destructive tests, dependency failures, bad deployment simulations, resource exhaustion, and other failure-injection exercises belong in staging or isolated test tasks.
+The purpose is to learn how systems fail without treating uncontrolled breakage as engineering.
+---
+Project Status
+OpsPilot has completed its main engineering and incident-validation phases.
+Current completed areas include:
+```text
+application foundation
+security and tenant isolation
+AWS staging infrastructure
+CI/CD
+database migrations
+observability
+centralized logging
+distributed tracing
+synthetic monitoring
+SLOs and error budgets
+alerting
+dependency resilience
+operational runbooks
+eight controlled incident drills
+```
+The remaining work is primarily portfolio hardening: architecture presentation, evidence/screenshots, documentation navigation, and interview-focused project explanation.
+---
+Why This Project Exists
+OpsPilot was built to practice the gap between writing software and supporting software in production-like conditions.
+The central question is not:
+> "Can the API return a successful response?"
+It is:
+> "When the system fails, can the failure be detected, isolated, explained, recovered safely, and prevented from becoming harder to diagnose next time?"
+That is the engineering problem OpsPilot is designed to demonstrate.
