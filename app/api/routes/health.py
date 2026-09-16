@@ -23,17 +23,35 @@ async def health() -> dict[str, str]:
 async def ready(response: Response) -> dict:
     checks = {
         "postgres": False,
+        "schema": False,
         "redis": False,
     }
 
     try:
         async with AsyncSessionLocal() as session:
             await session.execute(text("SELECT 1"))
+            checks["postgres"] = True
 
-        checks["postgres"] = True
+            try:
+                current_revision = await session.scalar(
+                    text(
+                        "SELECT version_num "
+                        "FROM alembic_version "
+                        "LIMIT 1"
+                    )
+                )
+
+                checks["schema"] = (
+                    current_revision
+                    == settings.required_db_schema_revision
+                )
+
+            except Exception:
+                checks["schema"] = False
 
     except Exception:
         checks["postgres"] = False
+        checks["schema"] = False
 
     redis = Redis.from_url(
         settings.redis_url,
@@ -57,7 +75,7 @@ async def ready(response: Response) -> dict:
     finally:
         await redis.aclose()
 
-    if not checks["postgres"]:
+    if not checks["postgres"] or not checks["schema"]:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
         return {
