@@ -7,72 +7,67 @@ The architecture is designed to demonstrate application delivery, dependency res
 ## System Architecture
 
 ```mermaid
-flowchart TB
+flowchart LR
 
-    USER[Client / API Consumer]
+    CLIENT[Client / API Consumer]
 
-    subgraph CICD["CI/CD"]
+    subgraph DELIVERY["CI/CD"]
         GH[GitHub Actions]
-        OIDC[AWS OIDC / IAM Role]
+        OIDC[AWS OIDC / IAM]
         ECR[Amazon ECR]
-        MIG[Alembic Migration Task]
+        MIG[Alembic Migration]
+        GH --> OIDC --> ECR --> MIG
     end
 
-    subgraph AWS["AWS Staging Environment"]
-
+    subgraph APP["AWS Staging - Application"]
         ALB[Application Load Balancer]
 
-        subgraph ECS["Amazon ECS Fargate"]
-            API[OpsPilot FastAPI API]
-            WORKER[Outbox Worker]
-        end
+        API[ECS Fargate API]
+        WORKER[ECS Fargate Outbox Worker]
 
         RDS[(Amazon RDS PostgreSQL)]
         REDIS[(Amazon ElastiCache Redis)]
         SECRETS[AWS Secrets Manager]
 
-        subgraph OBS["Observability"]
-            PROM[Prometheus]
-            AMP[Amazon Managed Prometheus]
-            GRAFANA[Grafana]
-            LOKI[Loki]
-            TEMPO[Tempo]
-            BLACKBOX[Blackbox Exporter]
-            ALERT[Alertmanager]
-            SNS[Amazon SNS]
-        end
+        ALB --> API
+
+        API --> RDS
+        API --> REDIS
+        API -. secrets .-> SECRETS
+
+        RDS --> WORKER
+        WORKER --> REDIS
+        WORKER -. secrets .-> SECRETS
     end
 
-    USER --> ALB
-    ALB --> API
+    subgraph OBS["Observability"]
+        PROM[Prometheus]
+        AMP[Amazon Managed Prometheus]
+        GRAFANA[Grafana]
+        LOKI[Loki]
+        TEMPO[Tempo]
+        BLACKBOX[Blackbox Exporter]
+        ALERT[Alertmanager]
+        SNS[Amazon SNS]
 
-    API --> RDS
-    API --> REDIS
-    API --> SECRETS
+        PROM --> AMP
+        PROM --> GRAFANA
+        LOKI --> GRAFANA
+        TEMPO --> GRAFANA
+        PROM --> ALERT --> SNS
+    end
 
-    RDS --> WORKER
-    WORKER --> REDIS
-    WORKER --> SECRETS
+    CLIENT --> ALB
 
-    GH --> OIDC
-    OIDC --> ECR
-    ECR --> MIG
     MIG --> API
     MIG --> WORKER
 
-    API -->|Metrics| PROM
-    WORKER -->|Metrics| PROM
-    PROM --> AMP
-    PROM --> GRAFANA
+    API -. metrics .-> PROM
+    WORKER -. metrics .-> PROM
 
-    API -->|Structured Logs via FireLens| LOKI
-    WORKER -->|Structured Logs via FireLens| LOKI
-    LOKI --> GRAFANA
+    API -. logs .-> LOKI
+    WORKER -. logs .-> LOKI
 
-    API -->|OpenTelemetry Traces| TEMPO
-    TEMPO --> GRAFANA
+    API -. traces .-> TEMPO
 
-    BLACKBOX -->|Synthetic /health Probe| ALB
-
-    PROM -->|Alert Rules| ALERT
-    ALERT --> SNS
+    BLACKBOX -. health probe .-> ALB
