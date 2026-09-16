@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI
+from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from opentelemetry import trace
@@ -19,6 +19,9 @@ _tracing_configured = False
 
 def configure_tracing(app: FastAPI, engine: AsyncEngine) -> None:
     global _tracing_configured
+
+    if not settings.otel_tracing_enabled:
+        return
 
     if _tracing_configured:
         return

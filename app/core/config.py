@@ -40,6 +40,7 @@ class Settings(BaseSettings):
 
     feature_ticket_notifications_enabled: bool = True
 
+    otel_tracing_enabled: bool = True
     otel_service_name: str = "opspilot-api"
     otel_exporter_otlp_endpoint: str = "http://tempo:4318/v1/traces"
     otel_environment: str = "development"
