@@ -1,12 +1,87 @@
-# OpsPilot
+<div align="center">
+
+# 🚦 OpsPilot
+
+### Production Support & Reliability Engineering on AWS
+
+A production-style SaaS workload built to demonstrate  
+**cloud operations, observability, incident response, deployment safety, and reliability engineering.**
+
+<br>
 
 [![OpsPilot CI](https://github.com/dwaradwara/opspilot/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/dwaradwara/opspilot/actions/workflows/ci.yml)
+![AWS](https://img.shields.io/badge/AWS-ECS%20Fargate-FF9900?logo=amazonaws&logoColor=white)
+![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform&logoColor=white)
+![Python](https://img.shields.io/badge/Python-FastAPI-3776AB?logo=python&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Cache-Redis-DC382D?logo=redis&logoColor=white)
+![Prometheus](https://img.shields.io/badge/Metrics-Prometheus-E6522C?logo=prometheus&logoColor=white)
+![Grafana](https://img.shields.io/badge/Observability-Grafana-F46800?logo=grafana&logoColor=white)
 
-OpsPilot is a production-support and reliability engineering project built around a multi-tenant SaaS API and operated in an AWS staging environment.
+<br>
 
-The project focuses on work performed in Technical Support, Production Support, Cloud Support, and SRE-adjacent roles: deploying services, monitoring them, investigating failures, protecting customer operations during dependency outages, validating recovery, and documenting incidents with reproducible evidence.
+**CI Passing** · **AWS Staging Deployed** · **8 Incident Drills** · **3 Operational Runbooks**
 
-This is not a CRUD-only demo. The application is intentionally used as the workload for production-style reliability engineering.
+</div>
+
+---
+
+## Overview
+
+OpsPilot is a production-support and reliability engineering project built around a multi-tenant SaaS API running in an AWS staging environment.
+
+The application is intentionally used as a workload for practicing the type of engineering performed in:
+
+**Technical Support · Production Support · Cloud Support · Application Support · SRE / Reliability Engineering**
+
+The focus is not only on building the application, but on operating it:
+
+- deploying immutable releases
+- monitoring service health and dependencies
+- troubleshooting application and infrastructure failures
+- validating database migrations before deployment
+- handling Redis and PostgreSQL failure scenarios
+- protecting deployments with ECS health checks and rollback
+- measuring SLOs and error budgets
+- injecting controlled failures
+- documenting incidents and operational recovery
+
+> **OpsPilot is not a CRUD-only demo.**
+> It is an operational engineering environment designed around troubleshooting, reliability, and production-support workflows.
+
+---
+
+## At a Glance
+
+| Area | Implementation |
+|---|---|
+| **Cloud Platform** | AWS ECS Fargate, ALB, RDS, ElastiCache, ECR |
+| **Infrastructure** | Terraform |
+| **Application** | FastAPI, Python, SQLAlchemy |
+| **Database** | PostgreSQL + Alembic |
+| **Async Processing** | Redis + transactional outbox |
+| **Observability** | Prometheus, Grafana, Loki, Tempo, OpenTelemetry |
+| **Reliability** | SLOs, error budgets, retries, timeouts, circuit breakers |
+| **CI/CD** | GitHub Actions + AWS OIDC + immutable SHA deployments |
+| **Deployment Safety** | Migration gate, health checks, ECS circuit breaker |
+| **Incident Engineering** | 8 controlled failure scenarios |
+| **Operations** | Runbooks, readiness checks, structured logging |
+
+---
+
+## Quick Navigation
+
+<div align="center">
+
+[**Architecture**](#architecture) ·
+[**AWS Staging**](#aws-staging-architecture) ·
+[**Observability**](#observability-architecture) ·
+[**CI/CD**](#cicd) ·
+[**Incidents**](#incident-engineering) ·
+[**Evidence**](#operational-evidence) ·
+[**Runbooks**](#operational-runbooks)
+
+</div>
 
 ---
 
