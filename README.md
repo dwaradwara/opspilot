@@ -392,6 +392,95 @@ detect
 -> validate recovery
 -> document evidence
 ```
+---
+
+## Operational Evidence
+
+Selected evidence from the deployed AWS staging environment and completed reliability exercises.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### CI/CD Pipeline
+
+<img src="docs/evidence/01-ci-passing.png" width="100%">
+
+GitHub Actions CI runs passing on the `master` branch.
+
+</td>
+<td width="50%" valign="top">
+
+### Service Observability
+
+<img src="docs/evidence/02-grafana-overview.png" width="100%">
+
+Grafana overview showing API health, request rate, latency, errors, and worker metrics.
+
+</td>
+</tr>
+
+<tr>
+<td width="50%" valign="top">
+
+### SLOs and Error Budgets
+
+<img src="docs/evidence/03-slo-error-budget.png" width="100%">
+
+Availability, latency compliance, error-budget targets, and burn-rate monitoring.
+
+</td>
+<td width="50%" valign="top">
+
+### ECS Deployment Protection
+
+<img src="docs/evidence/04-ecs-deployment-protection.png" width="100%">
+
+ECS service deployment with circuit-breaker monitoring and target health protection.
+
+</td>
+</tr>
+
+<tr>
+<td width="50%" valign="top">
+
+### Dependency-Aware Readiness
+
+<img src="docs/evidence/05-readiness-healthy.png" width="100%">
+
+`/ready` validating PostgreSQL, schema revision, and Redis connectivity.
+
+</td>
+<td width="50%" valign="top">
+
+### Database Migration Gate
+
+<img src="docs/evidence/06-migration-gate.png" width="100%">
+
+Alembic migration task completing with exit code `0` before ECS deployment proceeds.
+
+</td>
+</tr>
+
+<tr>
+<td width="50%" valign="top">
+
+### Container Memory Exhaustion
+
+<img src="docs/evidence/07-container-oom.png" width="100%">
+
+Documented INC-007 result: exit code `137`, container `STOPPED`, and ECS `OutOfMemoryError`.
+
+</td>
+<td width="50%" valign="top">
+
+### Incident Documentation
+
+Eight controlled failure scenarios are documented under [`docs/incidents`](docs/incidents), with operational runbooks under [`docs/runbooks`](docs/runbooks).
+
+</td>
+</tr>
+</table>
 
 ---
 
