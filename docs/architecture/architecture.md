@@ -71,3 +71,4 @@ flowchart LR
     API -. traces .-> TEMPO
 
     BLACKBOX -. health probe .-> ALB
+```

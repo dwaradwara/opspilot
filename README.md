@@ -69,7 +69,7 @@ flowchart LR
 
     API -. traces .-> TEMPO
 
----
+```
 
 ## What OpsPilot Demonstrates
 
