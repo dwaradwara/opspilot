@@ -149,6 +149,46 @@ data "aws_iam_policy_document" "ecs_deploy" {
   }
 
   statement {
+    sid = "RunStagingMigrationTask"
+
+    actions = [
+      "ecs:RunTask",
+    ]
+
+    resources = [
+      "arn:aws:ecs:*:*:task-definition/${var.name}-api:*",
+    ]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "ecs:cluster"
+
+      values = [
+        var.ecs_cluster_arn,
+      ]
+    }
+  }
+
+  statement {
+    sid = "DescribeStagingMigrationTask"
+
+    actions = [
+      "ecs:DescribeTasks",
+    ]
+
+    resources = ["*"]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "ecs:cluster"
+
+      values = [
+        var.ecs_cluster_arn,
+      ]
+    }
+  }
+
+  statement {
     sid = "ReadStagingLoadBalancer"
 
     actions = [

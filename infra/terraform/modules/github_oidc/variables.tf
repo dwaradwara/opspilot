@@ -45,3 +45,8 @@ variable "ecs_worker_service_arn" {
   description = "ARN of the ECS worker service GitHub Actions may deploy"
   type        = string
 }
+
+variable "ecs_cluster_arn" {
+  description = "ARN of the ECS cluster GitHub Actions may run migration tasks in"
+  type        = string
+}
